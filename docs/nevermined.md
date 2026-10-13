@@ -51,6 +51,8 @@ top-up のページによると、カード委任付きのトークンでクレ�
 1. verify の後、`getPlanBalance` で残高を確認する。同じ支払元からの同時リクエストで処理中の分も差し引いて、足りなければ **settle を呼ばずに** 402 `insufficient_credits` を返す
 2. settle の結果が `billingModel: 'pay-as-you-go'` だったら、想定外として失敗扱いにし、データは返さずログに残す
 
+この防止は `BLOCK_CARD_TOPUP=true`（既定）のときだけ働く。この設定で §5 の「残高切れの挙動」として測れるのは、ゲートウェイが返す 402 であり、Nevermined 自身の挙動ではない。Nevermined の挙動を測る週は `BLOCK_CARD_TOPUP=false` にする。そうすると自動補充がログの `cardTopUpOrderTx` に残り、カード明細の件数（§5「経理上の扱い」）が週次レポートに出る。
+
 あわせて、買い手の委任は `spendingLimitCents` を小さく（例 100 = $1）作ること。それでも残高確認と settle の間に別経路で消費されると、トップアップが走る可能性は残る。トップアップを無効にできるかは Nevermined に問い合わせ中とし、結果をここに追記する。
 
 ### 委任（delegation）の必要性
@@ -60,6 +62,9 @@ SDK 1.13.0 では、どのスキームでもトークン発行に `delegationCon
 1. Nevermined App でカードを登録する
 2. 小さい上限で委任を作る
 3. Stripe Checkout でプランを購入する
+4. トークンを発行する
+
+指示書 §1 の「カードでプラン購入 → トークン」より手順が多い。§5「購入から利用開始までの時間」は、委任の作成からを含めて測る。委任の作成とトークンの発行の時刻は `scripts/buyer-token.ts` が `log/events.jsonl` に記録し、週次レポートに区間ごとに出る。
 
 ### SDK の資料と実装の差
 

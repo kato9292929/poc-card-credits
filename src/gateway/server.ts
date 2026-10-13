@@ -19,6 +19,14 @@ const guard = new SpendGuard(cfg.maxPerCall, cfg.maxPerDay, (day) =>
   log.read(day).reduce((sum, e) => sum + BigInt(e.upstreamAttemptMicro ?? e.upstreamCostMicro ?? '0'), 0n),
 );
 
+const upstream = await X402UpstreamBuyer.create({
+  evmPrivateKey: cfg.evmPrivateKey,
+  svmPrivateKey: cfg.svmPrivateKey,
+  assets: loadAssets(),
+  testnetOnly: cfg.testnetOnly,
+  maxPerCall: cfg.maxPerCall,
+});
+
 const handle = createHandler({
   pricing,
   ledger: new NeverminedLedger({
@@ -27,18 +35,13 @@ const handle = createHandler({
     planId: cfg.planId,
     agentId: cfg.agentId,
   }),
-  upstream: await X402UpstreamBuyer.create({
-    evmPrivateKey: cfg.evmPrivateKey,
-    svmPrivateKey: cfg.svmPrivateKey,
-    assets: loadAssets(),
-    testnetOnly: cfg.testnetOnly,
-    maxPerCall: cfg.maxPerCall,
-  }),
+  upstream,
   guard,
   log,
   upstreams: cfg.upstreams,
   publicBaseUrl: cfg.publicBaseUrl,
   logSalt: cfg.logSalt,
+  blockCardTopUp: cfg.blockCardTopUp,
 });
 
 const app = express();
@@ -50,6 +53,8 @@ app.get('/healthz', (_req, res) => {
     ok: true,
     nvmEnvironment: cfg.nvmEnvironment,
     upstreamTestnetOnly: cfg.testnetOnly,
+    blockCardTopUp: cfg.blockCardTopUp,
+    gatewayWallet: upstream.addresses,
     spend: { day: s.day, spentUsd: microToUsd(s.spent), inFlightUsd: microToUsd(s.reserved), maxPerCallUsd: microToUsd(s.maxPerCall), maxPerDayUsd: microToUsd(s.maxPerDay) },
     routes: pricing.routes.map((r) => ({ method: r.method, path: r.path, credits: r.credits })),
   });

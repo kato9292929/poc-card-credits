@@ -15,7 +15,8 @@
     "buyer:token": "tsx scripts/buyer-token.ts",
     "report:weekly": "tsx scripts/weekly-report.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "wallet:new": "tsx scripts/new-wallet.ts"
   },
   "dependencies": {
     "@nevermined-io/payments": "1.13.0",

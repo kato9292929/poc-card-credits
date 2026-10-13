@@ -39,6 +39,8 @@ export interface GatewayConfig {
   maxPerDay: MicroUsd;
   /** true のときテストネットの資産しか払わない（§0：最初はテスト環境だけ）。 */
   testnetOnly: boolean;
+  /** 残高不足なら settle せず 402（既定 true）。false で Nevermined の自動補充の挙動を測る */
+  blockCardTopUp: boolean;
   logDir: string;
   logSalt: string;
   evmPrivateKey?: string;
@@ -69,6 +71,7 @@ export function loadGatewayConfig(): GatewayConfig {
     maxPerCall: lowerOnly('MAX_USD_PER_CALL', HARD_MAX_PER_CALL),
     maxPerDay: lowerOnly('MAX_USD_PER_DAY', HARD_MAX_PER_DAY),
     testnetOnly,
+    blockCardTopUp: process.env.BLOCK_CARD_TOPUP !== 'false',
     logDir: process.env.LOG_DIR ?? 'log',
     logSalt: required('LOG_SALT'),
     evmPrivateKey: process.env.GATEWAY_EVM_PRIVATE_KEY || undefined,

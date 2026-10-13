@@ -19,5 +19,13 @@ export type VerifyOutcome =
   | { ok: false; reason: string };
 
 export type SettleOutcome =
-  | { ok: true; creditsRedeemed: number; remaining?: string; tx?: string; billingModel?: string }
+  | {
+      ok: true;
+      creditsRedeemed: number;
+      remaining?: string;
+      tx?: string;
+      billingModel?: string;
+      /** クレジット不足でカードに自動補充（プラン価格を請求）したときの請求参照 */
+      topUpOrderTx?: string;
+    }
   | { ok: false; error: string };

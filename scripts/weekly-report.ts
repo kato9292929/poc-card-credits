@@ -79,19 +79,22 @@ const perCall = (m: bigint) => (ok.length ? usd(m / BigInt(ok.length)) : '-');
 const margin = revenue - upstreamCost - chainFees - feeAlloc;
 
 // --- 購入から利用開始まで ---
+// 実際の手順は「カード登録 → 委任作成 → プラン購入 → トークン発行 → 最初のリクエスト」（docs/nevermined.md）。
+// 委任作成とトークン発行の時刻は scripts/buyer-token.ts が events.jsonl に残す。
+const sec = (a?: string, b?: string) => (a && b ? `${Math.round((Date.parse(b) - Date.parse(a)) / 1000)} 秒` : '-');
 const ttfu = events
   .filter((e) => e.event === 'credits_available' && inWeek(e.ts))
   .map((e) => {
     const checkout = events.filter((c) => c.event === 'checkout_created' && c.stripeCheckoutSessionId === e.stripeCheckoutSessionId).at(-1);
-    const first = ok.find((r) => r.ts >= e.ts);
-    return {
-      checkout: checkout?.ts,
-      available: e.ts,
-      firstOk: first?.ts,
-      payToCreditsSec: checkout ? Math.round((Date.parse(e.ts) - Date.parse(checkout.ts)) / 1000) : undefined,
-      creditsToFirstOkSec: first ? Math.round((Date.parse(first.ts) - Date.parse(e.ts)) / 1000) : undefined,
-    };
+    const token = events.filter((t) => t.event === 'token_issued' && t.planId === e.planId && t.ts <= (ok.find((r) => r.ts >= e.ts)?.ts ?? '9999')).at(-1);
+    const first = ok.find((r) => r.ts >= e.ts && (!token || r.ts >= token.ts));
+    return { delegation: token?.delegationCreatedAt, checkout: checkout?.ts, available: e.ts, token: token?.ts, firstOk: first?.ts };
   });
+
+// --- カード明細の件数（経理上の扱い）---
+// プラン購入（Checkout）1件 ＋ 自動補充（settle 時のカード請求）の件数。補充が起きると「$10 のプラン」が明細で複数件になる
+const topUps = gw.filter((e) => e.cardTopUpOrderTx);
+const checkoutsInWeek = events.filter((e) => e.event === 'credits_available' && inWeek(e.ts));
 
 // --- 残高切れ ---
 const exhausted = buyer.filter((e) => e.event === 'credits_exhausted');
@@ -136,11 +139,11 @@ ${allCards.map((c) => `| ${c.date} | ${c.environment ?? ''} | $${c.grossUsd} | $
 
 ## 購入から利用開始までの時間
 
-| Checkout 作成 | クレジット付与 | 最初の成功リクエスト | 決済→付与 | 付与→初回利用 |
-|---|---|---|---|---|
-${ttfu.map((t) => `| ${t.checkout ?? '-'} | ${t.available} | ${t.firstOk ?? '-'} | ${t.payToCreditsSec ?? '-'} 秒 | ${t.creditsToFirstOkSec ?? '-'} 秒 |`).join('\n') || '| (今週の購入なし) | | | | |'}
+| 委任作成 | Checkout 作成 | クレジット付与 | トークン発行 | 最初の成功 | 委任→付与 | 決済→付与 | 付与→初回利用 |
+|---|---|---|---|---|---|---|---|
+${ttfu.map((t) => `| ${t.delegation ?? '-'} | ${t.checkout ?? '-'} | ${t.available} | ${t.token ?? '-'} | ${t.firstOk ?? '-'} | ${sec(t.delegation, t.available)} | ${sec(t.checkout, t.available)} | ${sec(t.available, t.firstOk)} |`).join('\n') || '| (今週の購入なし) | | | | | | | |'}
 
-「決済→付与」は Checkout URL 発行からの時間で、カード入力にかかった時間を含む。
+「決済→付与」は Checkout URL の発行から数えるので、カード情報の入力時間を含む。委任を購入の前に作った場合、「委任→付与」はカード登録後の手順全体にかかった時間になる。
 
 ## 残高切れの挙動
 
@@ -149,7 +152,9 @@ ${resumed.map((e) => `- ${e.ts}: 再開（停止時間 ${e.stoppedForSec} 秒）
 
 ## 経理上の扱い
 
-上の「明細表記」「領収書の形式」欄を参照。カード明細1件として処理できたか、経理担当の所見をここに追記する。
+- 今週のカード請求: プラン購入 ${checkoutsInWeek.length} 件 ＋ 自動補充 ${topUps.length} 件${topUps.length ? '（**自動補充があったため、プラン1件が明細の複数行になっている**）' : ''}
+- 明細の表記・領収書の形式は上のカード手数料表を参照（${cardFile} に転記）
+- カード明細1件として処理できたか、経理担当の所見をここに追記する
 `;
 
 const out = `reports/${week}.md`;

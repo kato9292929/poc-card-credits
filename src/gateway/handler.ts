@@ -27,6 +27,11 @@ export interface GatewayDeps {
   upstreams: Record<string, string>;
   publicBaseUrl: string;
   logSalt: string;
+  /**
+   * true（既定）: 残高不足なら settle せずに 402 を返す（カードへの自動補充を起こさない）。
+   * false: 残高を見ずに settle し、Nevermined 自身の挙動（自動補充・委任上限での拒否）を測る。
+   */
+  blockCardTopUp?: boolean;
   now?: () => number;
 }
 
@@ -46,6 +51,7 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
  */
 export function createHandler(deps: GatewayDeps) {
   const now = deps.now ?? Date.now;
+  const blockTopUp = deps.blockCardTopUp ?? true;
   // 支払元ごとの「検証済み・未消費」クレジット。同時リクエストで残高を超えて消費すると
   // Nevermined の自動トップアップ（カードへの追加課金）が走るため、それを防ぐ。
   const inFlight = new Map<string, number>();
@@ -92,21 +98,23 @@ export function createHandler(deps: GatewayDeps) {
     }
     entry.payerId = anonymize(v.payer, deps.logSalt);
 
-    const pending = inFlight.get(v.payer) ?? 0;
-    inFlight.set(v.payer, pending + route.credits);
+    const pending = blockTopUp ? inFlight.get(v.payer) ?? 0 : 0;
+    if (blockTopUp) inFlight.set(v.payer, pending + route.credits);
     try {
-      let balance: bigint;
-      try {
-        balance = await deps.ledger.balance(v.payer);
-      } catch (e) {
-        return finish(json(502, { error: 'balance_unavailable' }), { outcome: 'ledger_error', error: (e as Error).message });
-      }
-      entry.remainingCredits = balance.toString();
-      if (balance < BigInt(pending + route.credits)) {
-        return finish(
-          json(402, { error: 'insufficient_credits', balance: balance.toString(), required: route.credits }, paymentRequiredHeader()),
-          { outcome: 'insufficient_credits' },
-        );
+      if (blockTopUp) {
+        let balance: bigint;
+        try {
+          balance = await deps.ledger.balance(v.payer);
+        } catch (e) {
+          return finish(json(502, { error: 'balance_unavailable' }), { outcome: 'ledger_error', error: (e as Error).message });
+        }
+        entry.remainingCredits = balance.toString();
+        if (balance < BigInt(pending + route.credits)) {
+          return finish(
+            json(402, { error: 'insufficient_credits', balance: balance.toString(), required: route.credits }, paymentRequiredHeader()),
+            { outcome: 'insufficient_credits' },
+          );
+        }
       }
 
       // 2. 裏側の購入
@@ -159,12 +167,14 @@ export function createHandler(deps: GatewayDeps) {
           },
           body: up.body,
         },
-        { outcome: 'ok', creditsConsumed: s.creditsRedeemed, nvmSettleTx: s.tx, remainingCredits: s.remaining },
+        { outcome: 'ok', creditsConsumed: s.creditsRedeemed, nvmSettleTx: s.tx, remainingCredits: s.remaining, cardTopUpOrderTx: s.topUpOrderTx },
       );
     } finally {
-      const left = (inFlight.get(v.payer) ?? route.credits) - route.credits;
-      if (left > 0) inFlight.set(v.payer, left);
-      else inFlight.delete(v.payer);
+      if (blockTopUp) {
+        const left = (inFlight.get(v.payer) ?? route.credits) - route.credits;
+        if (left > 0) inFlight.set(v.payer, left);
+        else inFlight.delete(v.payer);
+      }
     }
   };
 }

@@ -45,7 +45,7 @@ const ok = (price: bigint, guard: SpendGuard): UpstreamPurchase => {
   return { status: 200, body: new TextEncoder().encode('{"data":1}'), contentType: 'application/json', attemptedMicro: price, paidMicro: price, network: 'solana:devnet', tx: 'sig123', latencyMs: 5 };
 };
 
-function setup(reply = ok, guard = new SpendGuard(usdToMicro('0.05'), usdToMicro('5'))) {
+function setup(reply = ok, guard = new SpendGuard(usdToMicro('0.05'), usdToMicro('5')), blockCardTopUp = true) {
   const ledger = new FakeLedger();
   const upstream = new FakeUpstream(reply);
   const logs: any[] = [];
@@ -58,6 +58,7 @@ function setup(reply = ok, guard = new SpendGuard(usdToMicro('0.05'), usdToMicro
     upstreams: { jin: 'https://jin.example', osd: 'https://osd.example' },
     publicBaseUrl: 'https://gw.example',
     logSalt: 'salt',
+    blockCardTopUp,
   });
   return { ledger, upstream, logs, handle, guard };
 }
@@ -150,4 +151,15 @@ test('concurrent requests cannot overdraw the prepaid balance', async () => {
 test('unknown route: 404', async () => {
   const { handle } = setup();
   assert.equal((await handle(req('/nope'))).status, 404);
+});
+
+test('BLOCK_CARD_TOPUP=false: no gateway pre-check, Nevermined top-up is recorded', async () => {
+  const guard = new SpendGuard(usdToMicro('0.05'), usdToMicro('5'));
+  const { handle, ledger, upstream, logs } = setup(ok, guard, false);
+  ledger.balanceOf = 0n;
+  ledger.settleResult = { ok: true, creditsRedeemed: 1, remaining: '999', tx: '0xs', topUpOrderTx: 'pi_topup' };
+  const res = await handle(req('/jin/series'));
+  assert.equal(res.status, 200);
+  assert.equal(upstream.calls.length, 1);
+  assert.equal(logs[0].cardTopUpOrderTx, 'pi_topup');
 });

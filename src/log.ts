@@ -42,6 +42,8 @@ export interface RequestLogEntry {
   upstreamTx?: string;
   upstreamStatus?: number;
   nvmSettleTx?: string;
+  /** settle 時に Nevermined がカードへ自動補充の請求をした場合の参照（カード明細が1件増える） */
+  cardTopUpOrderTx?: string;
   remainingCredits?: string;
   latencyMs: number;
   upstreamLatencyMs?: number;

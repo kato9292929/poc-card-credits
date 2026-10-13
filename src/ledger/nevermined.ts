@@ -77,7 +77,9 @@ export class NeverminedLedger implements CreditLedger {
         return { ok: false, error: `unexpected pay-as-you-go settlement (orderTx=${(r as { orderTx?: string }).orderTx ?? r.transaction})` };
       }
       if (!(redeemed > 0)) return { ok: false, error: `settle redeemed ${r.creditsRedeemed} credits` };
-      return { ok: true, creditsRedeemed: redeemed, remaining: r.remainingBalance, tx: r.transaction, billingModel };
+      // credits プランの orderTx は「自動トップアップでカードに請求したとき」だけ付く（x402 Card Delegation 仕様）
+      const topUpOrderTx = (r as { orderTx?: string }).orderTx || undefined;
+      return { ok: true, creditsRedeemed: redeemed, remaining: r.remainingBalance, tx: r.transaction, billingModel, topUpOrderTx };
     } catch (e) {
       return { ok: false, error: errMsg(e) };
     }

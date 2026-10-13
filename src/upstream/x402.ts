@@ -34,23 +34,29 @@ export class X402UpstreamBuyer implements UpstreamBuyer {
     private readonly http: x402HTTPClient,
     private readonly networks: { evm: boolean; svm: boolean },
     private readonly opts: X402BuyerOptions,
+    /** 支払いに使うウォレットのアドレス（/healthz で表示し、新規ウォレットであることを照合する） */
+    readonly addresses: { evm?: string; svm?: string },
   ) {}
 
   static async create(opts: X402BuyerOptions & { maxPerCall: MicroUsd }): Promise<X402UpstreamBuyer> {
     const client = new x402Client();
     const networks = { evm: false, svm: false };
+    const addresses: { evm?: string; svm?: string } = {};
     if (opts.evmPrivateKey) {
-      client.register('eip155:*', new ExactEvmScheme(privateKeyToAccount(opts.evmPrivateKey as `0x${string}`)));
+      const account = privateKeyToAccount(opts.evmPrivateKey as `0x${string}`);
+      client.register('eip155:*', new ExactEvmScheme(account));
       networks.evm = true;
+      addresses.evm = account.address;
     }
     if (opts.svmPrivateKey) {
       const signer = await createKeyPairSignerFromBytes(base58.decode(opts.svmPrivateKey));
       client.register('solana:*', new ExactSvmScheme(signer));
       networks.svm = true;
+      addresses.svm = signer.address;
     }
     // 二重の安全装置：SDK 側の spend control にも同じ1コール上限を入れる。
     client.setSpendControls({ maxAmountPerPayment: `$${microToUsd(opts.maxPerCall)}` });
-    return new X402UpstreamBuyer(client, new x402HTTPClient(client), networks, opts);
+    return new X402UpstreamBuyer(client, new x402HTTPClient(client), networks, opts, addresses);
   }
 
   /** 自前で選んだ要求のうち、許可済み USDC・登録済みネットワーク・exact スキームのものだけを残す。 */

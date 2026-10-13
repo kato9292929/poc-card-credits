@@ -48,7 +48,13 @@ npm install
 cp .env.example .env
 ```
 
-1. **ゲートウェイのウォレットを新しく作る。** Base Sepolia（EVM）または Solana devnet の鍵を新規に作り、テストネットの USDC を入れる。鍵は `.env` にだけ書く
+1. **ゲートウェイのウォレットを新しく作る。** Autonomous Agent のウォレット・鍵は使わない
+
+   ```bash
+   npm run wallet:new
+   ```
+
+   出力された鍵を `.env` にだけ書き、表示されたアドレスにテストネットの USDC（Base Sepolia / Solana devnet）を入れる。アドレスは `log/events.jsonl` にも残る。起動後に `/healthz` の `gatewayWallet` と一致することを確かめる
 2. **Nevermined（sandbox）でプランを登録する。** 売り手のキーで実行し、出力された ID を `.env` の `NVM_AGENT_ID` / `NVM_PLAN_ID` に書く
 
    ```bash
@@ -64,13 +70,13 @@ cp .env.example .env
 
 4. **買い手側の準備**（法人の担当者の役。買い手の NVM API キーで実行）
    1. Nevermined App（sandbox）でカードを登録し、**小さい上限**で委任を作る（理由は docs/nevermined.md の「自動トップアップ」）
-   2. 次のコマンドを実行し、表示された Stripe Checkout でテストカードを使って支払う。クレジットが付与されるまで待ち、時刻を記録する
+   2. 次のコマンドを実行し、表示された Stripe Checkout で支払う。Nevermined の sandbox は Stripe のテストモードにつながっているので、Stripe のテストカード（`4242 4242 4242 4242`、有効期限は未来の任意の日付）を使う。実際の請求は発生しない。クレジットが付与されるまで待ち、時刻を記録する
 
       ```bash
       npm run plan:order
       ```
 
-   3. アクセストークンを発行し、`.env` の `NVM_ACCESS_TOKEN` に書く
+   3. アクセストークンを発行し、`.env` の `NVM_ACCESS_TOKEN` に書く。買い手エージェントはトークンをこの環境変数から読むだけで、自分では発行しない。委任の作成時刻とトークンの発行時刻は `log/events.jsonl` に記録される
 
       ```bash
       NVM_DELEGATION_ID=... npm run buyer:token
@@ -81,6 +87,17 @@ cp .env.example .env
    ```bash
    npm run buyer
    ```
+
+## 残高切れの扱い（`BLOCK_CARD_TOPUP`）
+
+Nevermined のカード払いのトークンでは、クレジットが足りないと settle 時にカードへプラン価格が自動で請求され、クレジットが補充される（docs/nevermined.md「自動トップアップ」）。
+
+| 設定 | 動き | §5 で測れるもの |
+|---|---|---|
+| `true`（既定） | 残高が足りなければ、ゲートウェイが settle せずに 402 `insufficient_credits` を返す。指示書 §4 の「残高が尽きたら停止」を再現する | ゲートウェイが返す 402 と、エージェントの停止・再開。Nevermined 自身の挙動ではない |
+| `false` | 残高を見ずに settle する | Nevermined の挙動。自動補充（ログの `cardTopUpOrderTx`）と、委任の上限に達したときのエラー |
+
+自動補充が起きると、$10 のプランがカード明細の複数行になる。週次レポートの「経理上の扱い」に件数を出す。両方の挙動を測るなら、週を分けて設定を切り替える。
 
 ## ゲートウェイの応答
 

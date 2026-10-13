@@ -12,7 +12,9 @@
  */
 import 'dotenv/config';
 import { Payments } from '@nevermined-io/payments';
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { required, type NvmEnvironment } from '../src/config.ts';
+import { anonymize } from '../src/log.ts';
 
 const environment = (process.env.NVM_ENVIRONMENT ?? 'sandbox') as NvmEnvironment;
 const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY'), environment });
@@ -32,6 +34,25 @@ const { accessToken, tokenVersion } = await payments.x402.getX402AccessToken(pla
   scheme,
   delegationConfig: { delegationId },
 });
+// 「購入から利用開始まで」（§5）の区間に、委任の作成とトークン発行も入るので時刻を残す
+const delegation = (await payments.delegation.listDelegations()).delegations.find((d) => d.delegationId === delegationId);
+const logDir = process.env.LOG_DIR ?? 'log';
+mkdirSync(logDir, { recursive: true });
+appendFileSync(
+  `${logDir}/events.jsonl`,
+  JSON.stringify({
+    ts: new Date().toISOString(),
+    event: 'token_issued',
+    environment,
+    planId,
+    scheme,
+    tokenVersion,
+    tokenId: anonymize(accessToken, process.env.LOG_SALT ?? 'buyer'),
+    delegationId: delegationId.slice(0, 8),
+    delegationCreatedAt: delegation?.createdAt,
+    delegationLimitCents: delegation?.spendingLimitCents,
+  }) + '\n',
+);
 console.error(`tokenVersion=${tokenVersion} scheme=${scheme}`);
 if (tokenVersion === 3) console.error('注意: v3 トークンは1回限り。買い手エージェントは再利用できる v2 トークンを前提にしている。');
 console.log(accessToken);
