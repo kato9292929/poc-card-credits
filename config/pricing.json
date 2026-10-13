@@ -1,0 +1,33 @@
+{
+  "$comment": "クレジット1単位 = creditUnitUsd。各ルートの credits は priceUsd / creditUnitUsd と一致している必要がある（起動時に検証）。priceUsd はゲートウェイが裏で払う x402 の価格で、上流の 402 が提示した額と一致しなければ購入しない。価格はすべて仮の値（§5 の測定後に見直す）。",
+  "creditUnitUsd": "0.01",
+  "routes": [
+    {
+      "id": "jin.series",
+      "method": "GET",
+      "path": "/jin/series",
+      "upstream": "jin",
+      "upstreamPath": "/jin/series",
+      "priceUsd": "0.01",
+      "credits": 1
+    },
+    {
+      "id": "jin.movers",
+      "method": "GET",
+      "path": "/jin/movers",
+      "upstream": "jin",
+      "upstreamPath": "/jin/movers",
+      "priceUsd": "0.02",
+      "credits": 2
+    },
+    {
+      "id": "osd.catalysts",
+      "method": "GET",
+      "path": "/osd/catalysts/:ticker",
+      "upstream": "osd",
+      "upstreamPath": "/osd/catalysts/:ticker",
+      "priceUsd": "0.01",
+      "credits": 1
+    }
+  ]
+}
