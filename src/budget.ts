@@ -1,5 +1,5 @@
 import { microToUsd, type MicroUsd } from './money.ts';
-import { utcDay } from './log.ts';
+import { jstDay } from './log.ts';
 
 export type ReserveResult =
   | { ok: true; reservation: Reservation }
@@ -16,7 +16,7 @@ export interface Reservation {
 /**
  * ゲートウェイのウォレットからの支出上限（1コール・1日）を強制する。
  * 署名する「前」に reserve() し、上限を超える支払いには署名しない。
- * 日の境界は UTC。プロセス再起動時は当日のログから支出済み額を復元する。
+ * 日の境界は JST（ログの日付と同じ）。プロセス再起動時は当日のログから支出済み額を復元する。
  */
 export class SpendGuard {
   private day: string;
@@ -29,12 +29,12 @@ export class SpendGuard {
     private readonly restore: (day: string) => MicroUsd = () => 0n,
     private readonly now: () => Date = () => new Date(),
   ) {
-    this.day = utcDay(this.now());
+    this.day = jstDay(this.now());
     this.spent = restore(this.day);
   }
 
   private rollover(): void {
-    const today = utcDay(this.now());
+    const today = jstDay(this.now());
     if (today !== this.day) {
       this.day = today;
       this.spent = this.restore(today);

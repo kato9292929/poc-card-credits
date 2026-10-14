@@ -21,7 +21,14 @@ Sandbox での1週間の進め方（条件1・2）:
 
 本番に切り替えるときの作業:
 
-1. 本番用に、ゲートウェイの **新しい** ウォレットを `npm run wallet:new` で作る（テスト用のウォレットや AA のウォレットは使わない）。入金は数日分（$5/日 × 日数）だけにする
+1. 本番用に、ゲートウェイの **新しい** ウォレットを `NVM_ENVIRONMENT=live npm run wallet:new` で作る（テスト用のウォレットや AA のウォレットは使わない）。公開アドレスは docs/wallet.md に追記されるのでコミットする。入金は数日分（$5/日 × 日数）だけにする
 2. `NVM_ENVIRONMENT=live` で `npm run plan:register` を実行し、本番のプラン ID を取得する
-3. `.env` に `ALLOW_LIVE=true`、`UPSTREAM_TESTNET_ONLY=false`、本番の各 ID・キーを設定する
+3. `.env` に次を設定する
+   - `ALLOW_LIVE=true`
+   - `UPSTREAM_TESTNET_ONLY=false`
+   - 本番の各 ID・キー
+   - `LOG_SINK=blob`（`file` では起動しない）
+   - `BLOB_READ_WRITE_TOKEN`
+   - `LOG_READ_TOKEN`
+   - payg は本番の比較対象外なので、`NVM_PLAN_ID_PAYG` はゲートウェイに設定しない
 4. `/healthz` で上限（$0.05 / $5）と環境を確認してから、買い手を起動する

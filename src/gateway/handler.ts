@@ -1,5 +1,5 @@
 import { matchRoute, type Pricing } from '../pricing.ts';
-import { anonymize, type JsonlLog, type RequestLogEntry } from '../log.ts';
+import { anonymize, jstDay, type RequestLogEntry } from '../log.ts';
 import type { SpendGuard } from '../budget.ts';
 import type { CreditLedger } from '../ledger/types.ts';
 import type { UpstreamBuyer } from '../upstream/types.ts';
@@ -23,7 +23,8 @@ export interface GatewayDeps {
   ledger: CreditLedger;
   upstream: UpstreamBuyer;
   guard: SpendGuard;
-  log: Pick<JsonlLog, 'append'>;
+  /** ログの書き込み先（GatewayLogWriter）。書き込みの成否は応答に影響させない */
+  log: { write(entry: RequestLogEntry): void };
   upstreams: Record<string, string>;
   publicBaseUrl: string;
   logSalt: string;
@@ -58,8 +59,15 @@ export function createHandler(deps: GatewayDeps) {
 
   return async function handle(req: GatewayRequest): Promise<GatewayResponse> {
     const started = now();
+    const startedAt = new Date(started);
     const entry: RequestLogEntry = {
-      ts: new Date(started).toISOString(),
+      time_utc: startedAt.toISOString(),
+      date_jst: jstDay(startedAt),
+      tokenId: 'none',
+      planKind: 'prepaid',
+      verify: 'skipped',
+      settle: 'skipped',
+      upstreamTx: 'none',
       method: req.method,
       path: req.path,
       outcome: 'ok',
@@ -70,7 +78,7 @@ export function createHandler(deps: GatewayDeps) {
     };
     const finish = (res: GatewayResponse, patch: Partial<RequestLogEntry>): GatewayResponse => {
       Object.assign(entry, patch, { status: res.status, latencyMs: now() - started });
-      deps.log.append(entry);
+      deps.log.write(entry);
       return res;
     };
 
@@ -89,6 +97,7 @@ export function createHandler(deps: GatewayDeps) {
 
     // 1. 検証
     const v = await deps.ledger.verify({ token, endpoint, method: route.method, credits: route.credits });
+    entry.verify = v.ok ? 'valid' : v.reason;
     if (!v.ok) {
       const insufficient = /insufficient|balance/i.test(v.reason);
       return finish(
@@ -126,7 +135,7 @@ export function createHandler(deps: GatewayDeps) {
         upstreamCostMicro: up.paidMicro.toString(),
         upstreamAttemptMicro: up.attemptedMicro.toString(),
         upstreamNetwork: up.network,
-        upstreamTx: up.tx,
+        upstreamTx: up.tx ?? 'none',
         upstreamStatus: up.status,
         upstreamLatencyMs: up.latencyMs,
       });
@@ -155,7 +164,7 @@ export function createHandler(deps: GatewayDeps) {
       });
       if (!s.ok) {
         // 裏側は支払い済みだが消費できなかった。データは返さず、原価を未回収として記録する。
-        return finish(json(502, { error: 'settle_failed', reason: s.error }), { outcome: 'settle_failed', error: s.error });
+        return finish(json(502, { error: 'settle_failed', reason: s.error }), { outcome: 'settle_failed', settle: s.error, error: s.error });
       }
       return finish(
         {
@@ -167,7 +176,7 @@ export function createHandler(deps: GatewayDeps) {
           },
           body: up.body,
         },
-        { outcome: 'ok', creditsConsumed: s.creditsRedeemed, nvmSettleTx: s.tx, remainingCredits: s.remaining, cardTopUpOrderTx: s.topUpOrderTx },
+        { outcome: 'ok', settle: 'ok', creditsConsumed: s.creditsRedeemed, nvmSettleTx: s.tx, remainingCredits: s.remaining, cardTopUpOrderTx: s.topUpOrderTx },
       );
     } finally {
       if (blockTopUp) {

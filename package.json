@@ -16,12 +16,15 @@
     "report:weekly": "tsx scripts/weekly-report.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
-    "wallet:new": "tsx scripts/new-wallet.ts"
+    "wallet:new": "tsx scripts/new-wallet.ts",
+    "logs:issue-read-token": "tsx scripts/issue-log-read-token.ts",
+    "payg:probe": "tsx scripts/payg-probe.ts"
   },
   "dependencies": {
     "@nevermined-io/payments": "1.13.0",
     "@scure/base": "^2.4.0",
     "@solana/kit": "^5.5.1",
+    "@vercel/blob": "2.8.1",
     "@x402/core": "2.28.0",
     "@x402/evm": "2.28.0",
     "@x402/fetch": "2.28.0",

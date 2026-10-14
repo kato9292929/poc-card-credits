@@ -14,18 +14,20 @@ export class NeverminedLedger implements CreditLedger {
   private readonly payments: Payments;
 
   constructor(
-    private readonly opts: { nvmApiKey: string; environment: NvmEnvironment; planId: string; agentId: string },
+    private readonly opts: { nvmApiKey: string; environment: NvmEnvironment; planId: string; agentId: string; cardNetwork?: 'stripe' | 'braintree' | 'visa' },
   ) {
     this.payments = Payments.getInstance({ nvmApiKey: opts.nvmApiKey, environment: opts.environment });
   }
 
   paymentRequired(endpoint: string, method: string): X402PaymentRequired {
-    // スキーム（nvm:erc4337 / nvm:card-delegation）とネットワークは、指定しなければ
-    // SDK がトークンから推定する。買い手のトークンに合わせるため、ここでは固定しない。
+    // カード払いのプランなのでスキームは nvm:card-delegation、ネットワークは stripe を明示する。
+    // buildPaymentRequired は指定しないと暗号資産の nvm:erc4337 / eip155:84532 になる（SDK 1.13.0 の実装で確認）。
     return buildPaymentRequired(this.opts.planId, {
       endpoint,
       agentId: this.opts.agentId,
       httpVerb: method,
+      scheme: 'nvm:card-delegation',
+      network: this.opts.cardNetwork ?? 'stripe',
       environment: this.opts.environment,
       description: 'OSD / JIN via card-funded credits',
       mimeType: 'application/json',

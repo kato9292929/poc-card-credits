@@ -4,6 +4,7 @@ import { createHandler, type GatewayRequest } from '../src/gateway/handler.ts';
 import { loadPricing } from '../src/pricing.ts';
 import { SpendGuard } from '../src/budget.ts';
 import { usdToMicro } from '../src/money.ts';
+import { toLogLine } from '../src/log.ts';
 import type { CreditLedger, SettleOutcome } from '../src/ledger/types.ts';
 import type { UpstreamBuyer, UpstreamPurchase } from '../src/upstream/types.ts';
 
@@ -54,7 +55,8 @@ function setup(reply = ok, guard = new SpendGuard(usdToMicro('0.05'), usdToMicro
     ledger,
     upstream,
     guard,
-    log: { append: (e) => logs.push(e) },
+    // 全行が必須項目の検証（toLogLine）を通ることも確かめる
+    log: { write: (e) => logs.push(JSON.parse(toLogLine(e))) },
     upstreams: { jin: 'https://jin.example', osd: 'https://osd.example' },
     publicBaseUrl: 'https://gw.example',
     logSalt: 'salt',
@@ -162,4 +164,24 @@ test('BLOCK_CARD_TOPUP=false: no gateway pre-check, Nevermined top-up is recorde
   assert.equal(res.status, 200);
   assert.equal(upstream.calls.length, 1);
   assert.equal(logs[0].cardTopUpOrderTx, 'pi_topup');
+});
+
+test('every log line has the required fields, including requests rejected early', async () => {
+  const { handle, logs } = setup();
+  await handle(req('/nope'));
+  await handle(req('/jin/series', ''));
+  await handle(req('/jin/series'));
+  for (const e of logs) {
+    for (const k of ['time_utc', 'date_jst', 'tokenId', 'planKind', 'verify', 'settle', 'creditsConsumed', 'upstreamTx']) {
+      assert.ok(k in e, `${k} missing (${e.outcome})`);
+    }
+  }
+  assert.deepEqual(
+    logs.map((e) => [e.tokenId === 'none', e.verify, e.settle, e.upstreamTx]),
+    [
+      [true, 'skipped', 'skipped', 'none'],
+      [true, 'skipped', 'skipped', 'none'],
+      [false, 'valid', 'ok', 'sig123'],
+    ],
+  );
 });

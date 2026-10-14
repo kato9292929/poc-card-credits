@@ -71,6 +71,55 @@ SDK 1.13.0 では、どのスキームでもトークン発行に `delegationCon
 - payment-models のページの `getFiatPriceConfig({ amount: 1000, currency: 'USD' })` は古い書式。1.13.0 の実装は `getFiatPriceConfig(amount: bigint, receiver, currency?)` で、金額は小数6桁単位。実装に合わせた
 - `resolveScheme` は、`isCrypto === false` のプランを `nvm:card-delegation` と判定する（`dist/x402/facilitator-api.js`）
 
+### 402 の要件のスキーム（修正済み）
+
+`buildPaymentRequired` は、`scheme` を指定しないと暗号資産の `nvm:erc4337`（ネットワーク `eip155:84532`）になる（SDK 1.13.0 の実装で確認）。当初のゲートウェイは指定しておらず、カード払いのプランの要件として誤りだったので、`scheme: 'nvm:card-delegation'`・`network: 'stripe'` を明示するよう直した（`src/ledger/nevermined.ts`）。
+
+## payg（都度払い）の扱い
+
+**本番の比較対象から外した。** 本番は starter（前払い）だけで測る。ゲートウェイは starter のプラン ID でしか検証しないので、payg のトークンでは 402 になる。
+
+理由は2つある。
+
+- Stripe は1回の請求に最低額を設けていて、USD は **$0.50**（JPY は ¥50）。決済額が入金通貨に換算される場合は、その通貨の最低額が適用される（[Stripe: Minimum charge amount by currency](https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts)）。1コール $0.01 の都度払いは、カード1回の請求としては成り立たない
+- Nevermined 側にも、法定通貨のプランは最低 $1 という制約がある（`BCK.PROTOCOL.0047`）。SDK 1.13.0 の `getPayAsYouGoPriceConfig` は暗号資産専用で、カードの都度払いを作る関数は無い
+
+代わりに **Sandbox で1回だけ** $0.01 の請求を試し、次の3点を下の表に記録する。
+
+- 拒否されたか
+- まとめて請求されたか（または別の額で請求されたか）
+- どんなエラーが返ったか
+
+この試験は `npm run payg:probe` で行う。ゲートウェイも裏側の x402 購入も通さず、Nevermined に直接1回だけ請求させる。流れは次のとおり。
+
+1. プランの登録を試す
+2. 買い手のカード委任とトークン（`nvm:card-delegation`）を用意する
+3. verify → settle を1回だけ呼ぶ
+4. 委任のカード請求履歴（`GET /api/v1/delegation/{id}/transactions`）を前後で比べる
+
+記録済みなら止まる（翌日にまとめて請求されたかを見直すときは `--force`）。
+
+| outcome | 意味 |
+|---|---|
+| `plan_rejected` | $0.01 のプランの登録自体が拒否された |
+| `verify_rejected` / `settle_rejected` | 検証または請求の段階で拒否された（エラーを記録） |
+| `charged_exact` | 1¢ の請求が1件出た |
+| `charged_other_amount` | 1¢ 以外の額（例 50¢ の最低額）で請求された |
+| `not_charged_yet` | settle は成功したが、請求が出ていない（まとめて請求の可能性） |
+| `error` | 試験そのものが失敗した |
+
+### payg の試験記録（Sandbox）
+
+| 実施日時（UTC） | outcome | billingModel | 委任への新しい請求 | 委任の累計（¢） | 請求の参照 | エラー・備考 |
+|---|---|---|---|---|---|---|
+<!-- payg-probe-results -->
+
+未実施（2026-10-14 時点）。実施には次の3つが必要。
+
+- 売り手・買い手の `sandbox:` キー
+- Stripe のテストカードを登録した買い手アカウント
+- `NVM_AGENT_ID`
+
 ## 対応カードの範囲（§6 の確認事項）
 
 | 項目 | 公式情報 | 出典 |
@@ -86,6 +135,8 @@ SDK 1.13.0 では、どのスキームでもトークン発行に `delegationCon
 **結論（2026-10-13 時点）**: 法人カードと対応国は公式情報で確認できない。§6 に従い、Nevermined から法人カード（日本発行を含む）に対応しているという回答が得られるまでは、**本番の利用者を個人カードに限定する**。問い合わせの結果はこの表に追記する。
 
 ## 未確認・要問い合わせ
+
+- [ ] payg の Sandbox 試験（上の記録表）
 
 - [ ] 自動トップアップを無効にできるか
 - [ ] 委任なしで、プリペイドのクレジットだけを使うトークンを発行できるか

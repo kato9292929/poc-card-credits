@@ -44,11 +44,12 @@ test('daily cap counts committed and in-flight spend', () => {
   assert.equal(g.snapshot().reserved, 0n);
 });
 
-test('daily cap restores spend from log and resets on a new UTC day', () => {
-  let now = new Date('2026-10-13T23:59:00Z');
+test('daily cap restores spend from log and resets on a new JST day (15:00 UTC)', () => {
+  let now = new Date('2026-10-13T14:59:00Z'); // JST 10/13 23:59
   const restored: Record<string, bigint> = { '2026-10-13': usdToMicro('4.99') };
   const g = new SpendGuard(usdToMicro('0.05'), usdToMicro('5'), (d) => restored[d] ?? 0n, () => now);
   assert.equal(g.reserve(usdToMicro('0.02')).ok, false);
-  now = new Date('2026-10-14T00:00:01Z');
+  now = new Date('2026-10-13T15:00:01Z'); // JST 10/14 00:00
+  assert.equal(g.snapshot().day, '2026-10-14');
   assert.equal(g.reserve(usdToMicro('0.02')).ok, true);
 });

@@ -41,7 +41,13 @@ export interface GatewayConfig {
   testnetOnly: boolean;
   /** 残高不足なら settle せず 402（既定 true）。false で Nevermined の自動補充の挙動を測る */
   blockCardTopUp: boolean;
+  /** ゲートウェイのログの保存先。blob（既定）= Vercel Blob、file = ローカル（開発時のみ） */
+  logSink: 'blob' | 'file';
+  blobReadWriteToken?: string;
+  /** 開発時（LOG_SINK=file）の出力先 */
   logDir: string;
+  /** 実証2用の読み取り専用トークン（GET /logs/:date）。未設定なら口を閉じる */
+  logReadToken?: string;
   logSalt: string;
   evmPrivateKey?: string;
   svmPrivateKey?: string;
@@ -72,11 +78,22 @@ export function loadGatewayConfig(): GatewayConfig {
     maxPerDay: lowerOnly('MAX_USD_PER_DAY', HARD_MAX_PER_DAY),
     testnetOnly,
     blockCardTopUp: process.env.BLOCK_CARD_TOPUP !== 'false',
+    logSink: (process.env.LOG_SINK ?? 'blob') as 'blob' | 'file',
+    blobReadWriteToken: process.env.BLOB_READ_WRITE_TOKEN || undefined,
     logDir: process.env.LOG_DIR ?? 'log',
+    logReadToken: process.env.LOG_READ_TOKEN || undefined,
     logSalt: required('LOG_SALT'),
     evmPrivateKey: process.env.GATEWAY_EVM_PRIVATE_KEY || undefined,
     svmPrivateKey: process.env.GATEWAY_SVM_PRIVATE_KEY || undefined,
   };
+  if (cfg.logReadToken && cfg.logReadToken.length < 32) {
+    throw new Error('LOG_READ_TOKEN must be at least 32 characters (npm run logs:issue-read-token)');
+  }
+  if (cfg.logSink !== 'blob' && cfg.logSink !== 'file') throw new Error('LOG_SINK must be blob or file');
+  if (cfg.logSink === 'blob' && !cfg.blobReadWriteToken) throw new Error('missing BLOB_READ_WRITE_TOKEN (gateway logs go to Vercel Blob)');
+  if (cfg.logSink === 'file' && (allowLive || nvmEnvironment !== 'sandbox')) {
+    throw new Error('LOG_SINK=file is for local development only; it cannot be used with live settings');
+  }
   if (!cfg.evmPrivateKey && !cfg.svmPrivateKey) {
     throw new Error('set GATEWAY_EVM_PRIVATE_KEY and/or GATEWAY_SVM_PRIVATE_KEY (a NEW wallet for this gateway only)');
   }

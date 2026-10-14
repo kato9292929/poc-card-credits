@@ -16,9 +16,18 @@ agents/buyer                                                      src/gateway
                                                      （$0.05/コール・$5/日 を署名前に強制）
                                                   3. 200 のときだけ settle（クレジット消費）
                                                   4. 失敗したら消費しない
+                                                  5. 全リクエストを Vercel Blob の log/YYYY-MM-DD.jsonl に追記
+                                                     （実証2は GET /logs/:date で読む）
 ```
 
-OSD・JIN のリポジトリと Autonomous Agent のウォレットには触れない。Nevermined の実際の仕様（SDK の版、URL、指示書の想定との違い）は [docs/nevermined.md](docs/nevermined.md) にまとめた。
+他のリポジトリと Autonomous Agent のウォレットには触れない。秘密鍵・API キー・`LOG_READ_TOKEN` はコミットしない（`.env` のみ）。
+
+関連ドキュメント:
+
+- [docs/nevermined.md](docs/nevermined.md): Nevermined の実際の仕様（SDK の版、URL、指示書の想定との違い）と、payg の試験記録
+- [docs/wallet.md](docs/wallet.md): ゲートウェイのウォレットの公開アドレス
+
+payg（都度払い）は本番の比較対象から外した（Stripe の USD の最低請求額が $0.50 のため）。Sandbox で1回だけ試す（`npm run payg:probe`）。
 
 ## 構成
 
@@ -54,21 +63,34 @@ cp .env.example .env
    npm run wallet:new
    ```
 
-   出力された鍵を `.env` にだけ書き、表示されたアドレスにテストネットの USDC（Base Sepolia / Solana devnet）を入れる。アドレスは `log/events.jsonl` にも残る。起動後に `/healthz` の `gatewayWallet` と一致することを確かめる
-2. **Nevermined（sandbox）でプランを登録する。** 売り手のキーで実行し、出力された ID を `.env` の `NVM_AGENT_ID` / `NVM_PLAN_ID` に書く
+   出力された鍵を `.env` にだけ書き、表示されたアドレスに Solana devnet の USDC を入れる。公開アドレスは `docs/wallet.md` に追記されるので、コミットする（実証2の除外リスト用）。起動後に `/healthz` の `gatewayWallet` と一致することを確かめる。EVM（Base）も使うなら `npm run wallet:new -- --evm`
+2. **ログの保存先を用意する。**
+   1. Vercel の Storage > Blob でストアを作り、読み書きトークンを `BLOB_READ_WRITE_TOKEN` に入れる
+   2. 次のコマンドで実証2用の読み取りトークンを作り、ゲートウェイの `LOG_READ_TOKEN` と実証2の両方に設定する
+
+      ```bash
+      npm run logs:issue-read-token
+      ```
+
+   ローカルで開発するときだけ、`LOG_SINK=file` でファイルに出せる
+3. **Nevermined（sandbox）でプランを登録する。** 売り手のキーで実行し、出力された ID を `.env` の `NVM_AGENT_ID` / `NVM_PLAN_ID` に書く
 
    ```bash
    npm run plan:register
    ```
 
-3. **ゲートウェイを起動する。** 上限と環境は `/healthz` で確認できる
+4. **ゲートウェイを起動する。** `/healthz` で次を確認できる
+   - 上限
+   - 環境
+   - ログの保存先と、書き込みの失敗件数
+   - ウォレットのアドレス
 
    ```bash
    npm run gateway
    curl localhost:8787/healthz
    ```
 
-4. **買い手側の準備**（法人の担当者の役。買い手の NVM API キーで実行）
+5. **買い手側の準備**（法人の担当者の役。買い手の NVM API キーで実行）
    1. Nevermined App（sandbox）でカードを登録し、**小さい上限**で委任を作る（理由は docs/nevermined.md の「自動トップアップ」）
    2. 次のコマンドを実行し、表示された Stripe Checkout で支払う。Nevermined の sandbox は Stripe のテストモードにつながっているので、Stripe のテストカード（`4242 4242 4242 4242`、有効期限は未来の任意の日付）を使う。実際の請求は発生しない。クレジットが付与されるまで待ち、時刻を記録する
 
@@ -82,7 +104,7 @@ cp .env.example .env
       NVM_DELEGATION_ID=... npm run buyer:token
       ```
 
-5. **買い手エージェントを起動する。** 動作確認だけなら `npm run buyer -- --once`
+6. **買い手エージェントを起動する。** 動作確認だけなら `npm run buyer -- --once`
 
    ```bash
    npm run buyer
@@ -113,17 +135,50 @@ Nevermined のカード払いのトークンでは、クレジットが足りな
 
 ## ログ
 
-`log/YYYY-MM-DD.jsonl` には、1リクエストにつき1行を追記する。主な項目は次のとおり。
+### 保存先
 
 | 項目 | 内容 |
 |---|---|
-| `tokenId` / `payerId` | トークン・支払元を塩付き SHA-256 で匿名化した値 |
-| `creditsConsumed` | 消費したクレジット |
-| `upstreamCostMicro` | 裏側で払った額（マイクロUSD） |
-| `upstreamTx` | 裏側の x402 の tx 署名 |
-| `nvmSettleTx` | Nevermined の消費 tx |
-| `latencyMs` / `upstreamLatencyMs` | 応答時間 |
-| `outcome` / `error` | 結果とエラー内容 |
+| 場所 | Vercel Blob の `log/YYYY-MM-DD.jsonl`（private）。日付は **JST**。1日 $5 の上限の区切りも JST にそろえた |
+| 書き方 | **追記のみ**（既存の行は書き換えず、削除もしない） |
+| 書き込みの失敗 | リクエストの処理は止めない。失敗はエラーログ（標準エラー）に、書けなかった行ごと残す |
+| ローカルファイル | 開発時だけ `LOG_SINK=file` で切り替える。live の設定では使えない |
+
+Vercel Blob には追記の API が無い。そのため「読む → 末尾に1行足す → ETag が一致するときだけ書き戻す」で追記し、競合したらやり直す。書き戻す内容は常に「読んだ内容そのまま＋新しい行」で、これを書き込み前に確かめる。複数台で動かしても行は失われない（`test/blob-store.test.ts`）。
+
+### 実証2の読み方
+
+```bash
+curl -H "Authorization: Bearer $LOG_READ_TOKEN" "$GATEWAY_URL/logs/2026-10-14"
+```
+
+- `:date` は JST の `YYYY-MM-DD` で、その日の jsonl を返す
+- `LOG_READ_TOKEN` でできるのは、この GET だけ。GET 以外は 405 を返し、書き込み・削除の口は無い
+- Blob の読み書きトークンはゲートウェイの外に出さない
+
+### 各行の項目
+
+次の8項目は、どの行にも必ず入る。欠けた行は書かず、エラーとして残す。
+
+| 項目 | 内容 |
+|---|---|
+| `time_utc` | UTC の時刻（ISO 8601） |
+| `date_jst` | JST の日付（ファイル名と同じ） |
+| `tokenId` | 匿名化したトークン ID（塩付き SHA-256）。トークンなしは `none` |
+| `planKind` | プラン種別（`prepaid`） |
+| `verify` | `valid` / 無効理由 / `skipped` |
+| `settle` | `ok` / エラー内容 / `skipped` |
+| `creditsConsumed` | 消費クレジット |
+| `upstreamTx` | 裏側の x402 の tx 署名。支払っていなければ `none` |
+
+ほかに次も記録する。
+
+- 結果（`outcome`）と HTTP ステータス
+- 支払元の匿名 ID
+- 裏側の額
+- Nevermined の settle tx
+- カードの自動補充の参照
+- 応答時間
 
 トークンそのものは記録しない。
 
@@ -131,7 +186,7 @@ Nevermined のカード払いのトークンでは、クレジットが足りな
 
 ```bash
 cp reports/inputs/card-payments.example.json reports/inputs/card-payments.json   # Stripe / Nevermined の管理画面から転記
-npm run report:weekly            # 先週分
+npm run report:weekly            # 先週分（GATEWAY_URL と LOG_READ_TOKEN があれば GET /logs/:date から読む）
 npm run report:weekly -- 2026-W42
 ```
 
@@ -152,10 +207,13 @@ npm run typecheck
 npm test
 ```
 
-テストは次の3つ。ネットワークや Nevermined にはつながない。
+ネットワークや Nevermined にはつながない。
 
 | ファイル | 内容 |
 |---|---|
 | `test/handler.test.ts` | 処理順序。上流の失敗時と上限到達時に消費しないこと、同時リクエストで残高を超えないこと |
+| `test/logstore.test.ts` | JST の日付でファイルを分けること、必須項目、書き込みに失敗しても止めないこと、`GET /logs/:date`（トークン必須、GET のみ、未設定なら閉じる） |
+| `test/blob-store.test.ts` | 2プロセスから同時に追記しても行が失われないこと |
+| `test/new-wallet.test.ts` | 作った鍵でゲートウェイが動き、`docs/wallet.md` には公開アドレスだけが書かれること |
 | `test/x402-upstream.test.ts` | ローカルの擬似 x402 サーバーに本物の x402 クライアントで支払う。上限・価格不一致・メインネットの資産の場合に、署名もせず送信もしないこと |
 | `test/budget.test.ts` / `test/pricing.test.ts` | 上限の値、日付の切り替わり、価格とクレジットの整合 |

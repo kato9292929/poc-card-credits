@@ -5,13 +5,15 @@
  *   npm run report:weekly -- 2026-W42
  *
  * 入力:
- *   log/YYYY-MM-DD.jsonl         ゲートウェイの全リクエスト
+ *   ゲートウェイのログ            GET $GATEWAY_URL/logs/:date（LOG_READ_TOKEN）。開発時は log/YYYY-MM-DD.jsonl
  *   log/buyer-YYYY-MM-DD.jsonl   買い手エージェント
  *   log/events.jsonl             プラン購入（checkout_created / credits_available）
  *   reports/inputs/card-payments.json  カード手数料（Stripe / Nevermined の管理画面から転記）
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import 'dotenv/config';
 import { JsonlLog } from '../src/log.ts';
+import { HttpLogReader } from '../src/logstore/http-reader.ts';
 import { microToUsd, usdToMicro } from '../src/money.ts';
 
 const logDir = process.env.LOG_DIR ?? 'log';
@@ -38,7 +40,12 @@ const week = process.argv[2] ?? isoWeek(new Date(Date.now() - 7 * 86_400_000));
 const days = weekDays(week);
 const inWeek = (ts: string) => days.includes(ts.slice(0, 10));
 
-const gw = new JsonlLog(logDir).days().filter((d) => days.includes(d)).flatMap((d) => new JsonlLog(logDir).read(d));
+// ゲートウェイのログ：GATEWAY_URL と LOG_READ_TOKEN があれば GET /logs/:date（実証2と同じ読み方）、
+// 無ければ開発時のローカルファイル（LOG_SINK=file の出力）を読む。日付は JST
+const gw: any[] =
+  process.env.GATEWAY_URL && process.env.LOG_READ_TOKEN
+    ? (await Promise.all(days.map((d) => new HttpLogReader(process.env.GATEWAY_URL!, process.env.LOG_READ_TOKEN!).readDay(d)))).flat()
+    : days.flatMap((d) => new JsonlLog(logDir).read(d));
 const buyerLog = new JsonlLog(logDir, 'buyer-');
 const buyer = buyerLog.days().filter((d) => days.includes(d)).flatMap((d) => buyerLog.read(d));
 const events = existsSync(`${logDir}/events.jsonl`)
@@ -86,9 +93,9 @@ const ttfu = events
   .filter((e) => e.event === 'credits_available' && inWeek(e.ts))
   .map((e) => {
     const checkout = events.filter((c) => c.event === 'checkout_created' && c.stripeCheckoutSessionId === e.stripeCheckoutSessionId).at(-1);
-    const token = events.filter((t) => t.event === 'token_issued' && t.planId === e.planId && t.ts <= (ok.find((r) => r.ts >= e.ts)?.ts ?? '9999')).at(-1);
-    const first = ok.find((r) => r.ts >= e.ts && (!token || r.ts >= token.ts));
-    return { delegation: token?.delegationCreatedAt, checkout: checkout?.ts, available: e.ts, token: token?.ts, firstOk: first?.ts };
+    const token = events.filter((t) => t.event === 'token_issued' && t.planId === e.planId && t.ts <= (ok.find((r) => r.time_utc >= e.ts)?.time_utc ?? '9999')).at(-1);
+    const first = ok.find((r) => r.time_utc >= e.ts && (!token || r.time_utc >= token.ts));
+    return { delegation: token?.delegationCreatedAt, checkout: checkout?.ts, available: e.ts, token: token?.ts, firstOk: first?.time_utc };
   });
 
 // --- カード明細の件数（経理上の扱い）---
@@ -103,7 +110,7 @@ const buyerCalls = buyer.filter((e) => e.event === 'call');
 
 const md = `# 週次レポート ${week}
 
-期間: ${days[0]} 〜 ${days[6]}（UTC）／ 生成: ${new Date().toISOString()}
+期間: ${days[0]} 〜 ${days[6]}（JST）／ 生成: ${new Date().toISOString()}
 
 ## リクエスト
 
