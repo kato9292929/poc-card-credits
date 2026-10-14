@@ -1,0 +1,9 @@
+{
+  "$comment": "ゲートウェイが裏側の x402 で支払ってよい資産（USDC のみ）。ここにない資産・ネットワークの支払い要求には応じない。アドレスは @x402/svm・@x402/evm 2.28.0 の定数と一致することを確認済み。",
+  "assets": [
+    { "network": "eip155:84532", "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e", "symbol": "USDC", "decimals": 6, "testnet": true },
+    { "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "asset": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", "symbol": "USDC", "decimals": 6, "testnet": true },
+    { "network": "eip155:8453", "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "symbol": "USDC", "decimals": 6, "testnet": false },
+    { "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "symbol": "USDC", "decimals": 6, "testnet": false }
+  ]
+}

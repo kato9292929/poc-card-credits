@@ -1,0 +1,20 @@
+{
+  "$comment": "Stripe / Nevermined のダッシュボードから手で転記する（自動取得できる API は未確認）。コピーして card-payments.json として保存。金額は USD。",
+  "payments": [
+    {
+      "date": "2026-10-14",
+      "plan": "starter",
+      "environment": "sandbox",
+      "grossUsd": "10.00",
+      "stripeFeeUsd": "0.59",
+      "neverminedFeeUsd": "0.20",
+      "netUsd": "9.21",
+      "creditsPurchased": 1000,
+      "cardBrand": "visa",
+      "cardType": "personal | corporate",
+      "statementDescriptor": "カード明細の表記をそのまま",
+      "receiptFormat": "Stripe のレシート/請求書の形式（PDF・メール・インボイス番号の有無など）",
+      "notes": ""
+    }
+  ]
+}

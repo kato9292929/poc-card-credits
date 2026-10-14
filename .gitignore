@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+# ログは実ウォレットの tx を含むためコミットしない（集計結果は reports/ に出す）
+log/*
+!log/.gitkeep
+*.key
+*.pem

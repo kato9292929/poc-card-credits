@@ -1,0 +1,42 @@
+{
+  "name": "poc-card-credits",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PoC 1: card-funded Nevermined credits consumed per-call by agents, backed by x402 purchases of OSD / JIN",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "gateway": "tsx src/gateway/server.ts",
+    "buyer": "tsx agents/buyer/index.ts",
+    "plan:register": "tsx scripts/register-plan.ts",
+    "plan:order": "tsx scripts/order-plan.ts",
+    "buyer:token": "tsx scripts/buyer-token.ts",
+    "report:weekly": "tsx scripts/weekly-report.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "wallet:new": "tsx scripts/new-wallet.ts",
+    "logs:issue-read-token": "tsx scripts/issue-log-read-token.ts",
+    "payg:probe": "tsx scripts/payg-probe.ts"
+  },
+  "dependencies": {
+    "@nevermined-io/payments": "1.13.0",
+    "@scure/base": "^2.4.0",
+    "@solana/kit": "^5.5.1",
+    "@vercel/blob": "2.8.1",
+    "@x402/core": "2.28.0",
+    "@x402/evm": "2.28.0",
+    "@x402/fetch": "2.28.0",
+    "@x402/svm": "2.28.0",
+    "dotenv": "^18.0.7",
+    "express": "^5.3.0",
+    "viem": "^2.57.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

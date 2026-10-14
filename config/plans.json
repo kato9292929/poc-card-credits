@@ -1,0 +1,11 @@
+{
+  "$comment": "§2 のプラン。価格は仮（§5 の測定後に見直す）。credits × pricing.json の creditUnitUsd が売上換算の基準。",
+  "plans": [
+    {
+      "name": "starter",
+      "description": "OSD・JIN 共通クレジット 1,000 回分（1クレジット = $0.01 相当の x402 コール）",
+      "priceUsd": "10",
+      "credits": 1000
+    }
+  ]
+}
