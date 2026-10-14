@@ -8,10 +8,11 @@
 import 'dotenv/config';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Payments } from '@nevermined-io/payments';
-import { required, type NvmEnvironment } from '../src/config.ts';
+import { nvmEnvironment, required } from '../src/config.ts';
 import { appendFileSync, mkdirSync } from 'node:fs';
 
-const environment = (process.env.NVM_ENVIRONMENT ?? 'sandbox') as NvmEnvironment;
+// キーのプレフィックスと NVM_ENVIRONMENT の一致を確かめる（live は ALLOW_LIVE=true が必要）
+const environment = nvmEnvironment(required('NVM_API_KEY'));
 const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY'), environment });
 const planId = required('NVM_PLAN_ID');
 const logDir = process.env.LOG_DIR ?? 'log';

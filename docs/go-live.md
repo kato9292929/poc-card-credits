@@ -27,7 +27,7 @@ Sandbox での1週間の進め方（条件1・2）:
    - `ALLOW_LIVE=true`
    - `UPSTREAM_TESTNET_ONLY=false`
    - 本番の各 ID・キー
-   - `LOG_SINK=blob`（`file` では起動しない）
+   - `LOG_SINK=blob`（`file` は `NODE_ENV=development` のときだけ有効で、Live では起動しない）
    - `BLOB_READ_WRITE_TOKEN`
    - `LOG_READ_TOKEN`
    - payg は本番の比較対象外なので、`NVM_PLAN_ID_PAYG` はゲートウェイに設定しない

@@ -8,13 +8,11 @@
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { Payments } from '@nevermined-io/payments';
-import { required, type NvmEnvironment } from '../src/config.ts';
+import { nvmEnvironment, required } from '../src/config.ts';
 import { usdToMicro } from '../src/money.ts';
 
-const environment = (process.env.NVM_ENVIRONMENT ?? 'sandbox') as NvmEnvironment;
-if (environment !== 'sandbox' && process.env.ALLOW_LIVE !== 'true') {
-  throw new Error('plan registration outside sandbox requires ALLOW_LIVE=true (docs/go-live.md)');
-}
+// キーのプレフィックスと NVM_ENVIRONMENT の一致を確かめる（live は ALLOW_LIVE=true が必要）
+const environment = nvmEnvironment(required('NVM_API_KEY'));
 const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY'), environment });
 const receiver = required('NVM_RECEIVER_ADDRESS') as `0x${string}`;
 const publicBaseUrl = required('PUBLIC_BASE_URL');

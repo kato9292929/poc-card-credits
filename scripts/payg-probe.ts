@@ -22,13 +22,13 @@ import 'dotenv/config';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Payments, buildPaymentRequired } from '@nevermined-io/payments';
-import { required } from '../src/config.ts';
+import { nvmEnvironment, required } from '../src/config.ts';
 import { usdToMicro } from '../src/money.ts';
 
-const env = process.env.NVM_ENVIRONMENT ?? 'sandbox';
 const sellerKey = required('NVM_API_KEY');
 const buyerKey = required('NVM_SUBSCRIBER_API_KEY');
-if (env !== 'sandbox' || !sellerKey.startsWith('sandbox:') || !buyerKey.startsWith('sandbox:')) {
+const env = nvmEnvironment(sellerKey, buyerKey);
+if (env !== 'sandbox') {
   throw new Error('payg probe is sandbox-only (NVM_ENVIRONMENT=sandbox and sandbox: keys)');
 }
 const DOC = 'docs/nevermined.md';

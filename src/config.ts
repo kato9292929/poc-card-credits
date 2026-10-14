@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { getEnvironmentFromApiKey } from '@nevermined-io/payments';
 import { usdToMicro, type MicroUsd } from './money.ts';
 
 /**
@@ -53,12 +54,34 @@ export interface GatewayConfig {
   svmPrivateKey?: string;
 }
 
-export function loadGatewayConfig(): GatewayConfig {
-  const nvmEnvironment = (process.env.NVM_ENVIRONMENT ?? 'sandbox') as NvmEnvironment;
-  const allowLive = process.env.ALLOW_LIVE === 'true';
-  if ((nvmEnvironment === 'live' || nvmEnvironment === 'staging_live') && !allowLive) {
+/**
+ * NVM_ENVIRONMENT を読み、渡された API キーのプレフィックス（sandbox: / live: など）と一致するか確かめる
+ * （poc-card-percall から移植。docs/merge-from-percall.md）。
+ * 食い違うと Nevermined は別のバックエンドに届いて分かりにくい 4xx を返す（5-Minute Setup）ので、起動時に止める。
+ * プレフィックスの解釈は SDK の getEnvironmentFromApiKey に合わせる。live は ALLOW_LIVE=true のときだけ許可する。
+ */
+export function nvmEnvironment(...keys: (string | undefined)[]): NvmEnvironment {
+  const env = (process.env.NVM_ENVIRONMENT ?? 'sandbox') as NvmEnvironment;
+  if (!['sandbox', 'live', 'staging_sandbox', 'staging_live'].includes(env)) {
+    throw new Error(`NVM_ENVIRONMENT must be sandbox or live, got ${env}`);
+  }
+  if ((env === 'live' || env === 'staging_live') && process.env.ALLOW_LIVE !== 'true') {
     throw new Error('NVM_ENVIRONMENT is live but ALLOW_LIVE!=true. 本番移行は docs/go-live.md の条件を満たしてから。');
   }
+  for (const k of keys) {
+    if (!k) continue;
+    const fromKey = getEnvironmentFromApiKey(k);
+    if (fromKey !== env) {
+      throw new Error(`NVM API key prefix "${k.split(':')[0]}:" does not match NVM_ENVIRONMENT=${env}`);
+    }
+  }
+  return env;
+}
+
+export function loadGatewayConfig(): GatewayConfig {
+  const nvmApiKey = required('NVM_API_KEY');
+  const nvmEnv = nvmEnvironment(nvmApiKey);
+  const allowLive = process.env.ALLOW_LIVE === 'true';
   const testnetOnly = process.env.UPSTREAM_TESTNET_ONLY !== 'false';
   if (!testnetOnly && !allowLive) {
     throw new Error('UPSTREAM_TESTNET_ONLY=false requires ALLOW_LIVE=true');
@@ -66,8 +89,8 @@ export function loadGatewayConfig(): GatewayConfig {
   const cfg: GatewayConfig = {
     port: Number(process.env.PORT ?? 8787),
     publicBaseUrl: process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 8787}`,
-    nvmApiKey: required('NVM_API_KEY'),
-    nvmEnvironment,
+    nvmApiKey,
+    nvmEnvironment: nvmEnv,
     planId: required('NVM_PLAN_ID'),
     agentId: required('NVM_AGENT_ID'),
     upstreams: {
@@ -91,8 +114,9 @@ export function loadGatewayConfig(): GatewayConfig {
   }
   if (cfg.logSink !== 'blob' && cfg.logSink !== 'file') throw new Error('LOG_SINK must be blob or file');
   if (cfg.logSink === 'blob' && !cfg.blobReadWriteToken) throw new Error('missing BLOB_READ_WRITE_TOKEN (gateway logs go to Vercel Blob)');
-  if (cfg.logSink === 'file' && (allowLive || nvmEnvironment !== 'sandbox')) {
-    throw new Error('LOG_SINK=file is for local development only; it cannot be used with live settings');
+  // ローカルファイルへの出力は開発時だけ（NODE_ENV=development）。Sandbox の運用でも常に Vercel Blob に書く
+  if (cfg.logSink === 'file' && (process.env.NODE_ENV !== 'development' || allowLive || nvmEnv !== 'sandbox')) {
+    throw new Error('LOG_SINK=file is for local development only (NODE_ENV=development, sandbox, ALLOW_LIVE unset)');
   }
   if (!cfg.evmPrivateKey && !cfg.svmPrivateKey) {
     throw new Error('set GATEWAY_EVM_PRIVATE_KEY and/or GATEWAY_SVM_PRIVATE_KEY (a NEW wallet for this gateway only)');

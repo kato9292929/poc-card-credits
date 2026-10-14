@@ -117,25 +117,39 @@ test('GET /logs is closed when LOG_READ_TOKEN is unset or too short', async () =
   }
 });
 
-test('config: LOG_SINK=file is refused with live settings; blob needs its token; short LOG_READ_TOKEN refused', async () => {
+test('config: LOG_SINK=file only with NODE_ENV=development; blob needs its token; short LOG_READ_TOKEN refused', async () => {
   const { loadGatewayConfig } = await import('../src/config.ts');
-  const base = {
-    NVM_API_KEY: 'k', NVM_PLAN_ID: 'p', NVM_AGENT_ID: 'a', OSD_BASE_URL: 'https://o', JIN_BASE_URL: 'https://j',
-    LOG_SALT: 's', GATEWAY_SVM_PRIVATE_KEY: 'x', NVM_ENVIRONMENT: 'sandbox', BLOB_READ_WRITE_TOKEN: 't',
-  };
-  const run = (env: Record<string, string>) => {
-    const saved = { ...process.env };
-    for (const k of ['LOG_SINK', 'ALLOW_LIVE', 'LOG_READ_TOKEN', 'UPSTREAM_TESTNET_ONLY', 'GATEWAY_EVM_PRIVATE_KEY']) delete process.env[k];
-    Object.assign(process.env, env);
-    try {
-      return loadGatewayConfig();
-    } finally {
-      process.env = saved;
-    }
-  };
-  assert.equal(run(base).logSink, 'blob');
-  assert.throws(() => run({ ...base, BLOB_READ_WRITE_TOKEN: '' }), /BLOB_READ_WRITE_TOKEN/);
-  assert.equal(run({ ...base, BLOB_READ_WRITE_TOKEN: '', LOG_SINK: 'file' }).logSink, 'file');
-  assert.throws(() => run({ ...base, LOG_SINK: 'file', ALLOW_LIVE: 'true' }), /development only/);
-  assert.throws(() => run({ ...base, LOG_READ_TOKEN: 'short' }), /32/);
+  const run = (env: Record<string, string>) => withEnv(env, () => loadGatewayConfig());
+  assert.equal(run(BASE).logSink, 'blob');
+  assert.throws(() => run({ ...BASE, BLOB_READ_WRITE_TOKEN: '' }), /BLOB_READ_WRITE_TOKEN/);
+  assert.equal(run({ ...BASE, BLOB_READ_WRITE_TOKEN: '', LOG_SINK: 'file', NODE_ENV: 'development' }).logSink, 'file');
+  assert.throws(() => run({ ...BASE, LOG_SINK: 'file' }), /development only/); // Sandbox の運用でも file は不可
+  assert.throws(() => run({ ...BASE, LOG_SINK: 'file', NODE_ENV: 'production' }), /development only/);
+  assert.throws(() => run({ ...BASE, LOG_SINK: 'file', NODE_ENV: 'development', ALLOW_LIVE: 'true' }), /development only/);
+  assert.throws(() => run({ ...BASE, LOG_READ_TOKEN: 'short' }), /32/);
 });
+
+test('config: API key prefix must match NVM_ENVIRONMENT; live needs ALLOW_LIVE (moved from percall)', async () => {
+  const { loadGatewayConfig, nvmEnvironment } = await import('../src/config.ts');
+  assert.throws(() => withEnv({ ...BASE, NVM_API_KEY: 'live:k' }, () => loadGatewayConfig()), /does not match/);
+  assert.throws(() => withEnv({ ...BASE, NVM_API_KEY: 'k' }, () => loadGatewayConfig()), /does not match/);
+  assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'live' }, () => nvmEnvironment('live:k')), /ALLOW_LIVE/);
+  assert.equal(withEnv({ NVM_ENVIRONMENT: 'live', ALLOW_LIVE: 'true' }, () => nvmEnvironment('live:k')), 'live');
+  assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment('sandbox:a', 'live:b')), /does not match/);
+});
+
+const BASE = {
+  NVM_API_KEY: 'sandbox:k', NVM_PLAN_ID: 'p', NVM_AGENT_ID: 'a', OSD_BASE_URL: 'https://o', JIN_BASE_URL: 'https://j',
+  LOG_SALT: 's', GATEWAY_SVM_PRIVATE_KEY: 'x', NVM_ENVIRONMENT: 'sandbox', BLOB_READ_WRITE_TOKEN: 't',
+};
+
+function withEnv<T>(env: Record<string, string>, fn: () => T): T {
+  const saved = { ...process.env };
+  for (const k of ['LOG_SINK', 'ALLOW_LIVE', 'LOG_READ_TOKEN', 'UPSTREAM_TESTNET_ONLY', 'GATEWAY_EVM_PRIVATE_KEY', 'NODE_ENV', 'NVM_ENVIRONMENT']) delete process.env[k];
+  Object.assign(process.env, env);
+  try {
+    return fn();
+  } finally {
+    process.env = saved;
+  }
+}

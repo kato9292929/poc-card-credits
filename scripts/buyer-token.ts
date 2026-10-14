@@ -13,10 +13,11 @@
 import 'dotenv/config';
 import { Payments } from '@nevermined-io/payments';
 import { appendFileSync, mkdirSync } from 'node:fs';
-import { required, type NvmEnvironment } from '../src/config.ts';
+import { nvmEnvironment, required } from '../src/config.ts';
 import { anonymize } from '../src/log.ts';
 
-const environment = (process.env.NVM_ENVIRONMENT ?? 'sandbox') as NvmEnvironment;
+// キーのプレフィックスと NVM_ENVIRONMENT の一致を確かめる（live は ALLOW_LIVE=true が必要）
+const environment = nvmEnvironment(required('NVM_API_KEY'));
 const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY'), environment });
 const planId = required('NVM_PLAN_ID');
 const agentId = required('NVM_AGENT_ID');

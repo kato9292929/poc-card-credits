@@ -72,7 +72,7 @@ cp .env.example .env
       npm run logs:issue-read-token
       ```
 
-   ローカルで開発するときだけ、`LOG_SINK=file` でファイルに出せる
+   ローカルで開発するときだけ、`NODE_ENV=development LOG_SINK=file` でファイルに出せる
 3. **Nevermined（sandbox）でプランを登録する。** 売り手のキーで実行し、出力された ID を `.env` の `NVM_AGENT_ID` / `NVM_PLAN_ID` に書く
 
    ```bash
@@ -142,7 +142,7 @@ Nevermined のカード払いのトークンでは、クレジットが足りな
 | 場所 | Vercel Blob の `log/YYYY-MM-DD.jsonl`（private）。日付は **JST**。1日 $5 の上限の区切りも JST にそろえた |
 | 書き方 | **追記のみ**（既存の行は書き換えず、削除もしない） |
 | 書き込みの失敗 | リクエストの処理は止めない。失敗はエラーログ（標準エラー）に、書けなかった行ごと残す |
-| ローカルファイル | 開発時だけ `LOG_SINK=file` で切り替える。live の設定では使えない |
+| ローカルファイル | 開発時だけ。`NODE_ENV=development` かつ `LOG_SINK=file` のときに限る。Sandbox の運用でも Live でも使えない |
 
 Vercel Blob には追記の API が無い。そのため「読む → 末尾に1行足す → ETag が一致するときだけ書き戻す」で追記し、競合したらやり直す。書き戻す内容は常に「読んだ内容そのまま＋新しい行」で、これを書き込み前に確かめる。複数台で動かしても行は失われない（`test/blob-store.test.ts`）。
 
