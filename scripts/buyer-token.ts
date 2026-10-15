@@ -8,7 +8,7 @@
  * 委任には支出上限（spendingLimitCents）があり、クレジットが尽きたときの自動トップアップも
  * この上限の範囲で行われる。PoC では上限を小さくしておくこと（docs/nevermined.md「自動トップアップ」）。
  *
- *   NVM_API_KEY=<買い手のキー> NVM_DELEGATION_ID=<uuid> npm run buyer:token
+ *   NVM_DELEGATION_ID=<uuid> npm run buyer:token
  */
 import 'dotenv/config';
 import { Payments } from '@nevermined-io/payments';
@@ -17,8 +17,8 @@ import { nvmEnvironment, required } from '../src/config.ts';
 import { anonymize } from '../src/log.ts';
 
 // キーのプレフィックスと NVM_ENVIRONMENT の一致を確かめる（live は ALLOW_LIVE=true が必要）
-const environment = nvmEnvironment(required('NVM_API_KEY'));
-const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY'), environment });
+const environment = nvmEnvironment(required('NVM_API_KEY_BUYER'));
+const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY_BUYER'), environment });
 const planId = required('NVM_PLAN_ID');
 const agentId = required('NVM_AGENT_ID');
 const delegationId = process.env.NVM_DELEGATION_ID;

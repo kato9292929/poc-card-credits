@@ -71,8 +71,8 @@ const unrecovered = sum(gw.filter((e) => e.outcome === 'settle_failed').map((e) 
 const failedButCharged = gw.filter((e) => e.outcome !== 'ok' && (e.creditsConsumed ?? 0) > 0);
 
 // --- 売上（クレジット換算）とカード手数料 ---
-const starter = plans.find((p) => p.name === 'starter')!;
-const revenuePerCredit = usdToMicro(starter.priceUsd) / BigInt(starter.credits);
+const prepaid = plans.find((p) => p.name === 'prepaid-100')!;
+const revenuePerCredit = usdToMicro(prepaid.priceUsd) / BigInt(prepaid.credits);
 const revenue = revenuePerCredit * BigInt(creditsConsumed);
 const weekCards = cards.filter((c) => inWeek(`${c.date}T00:00:00Z`));
 const allCards = cards;
@@ -99,7 +99,7 @@ const ttfu = events
   });
 
 // --- カード明細の件数（経理上の扱い）---
-// プラン購入（Checkout）1件 ＋ 自動補充（settle 時のカード請求）の件数。補充が起きると「$10 のプラン」が明細で複数件になる
+// プラン購入（Checkout）1件 ＋ 自動補充（settle 時のカード請求）の件数。補充が起きると「$1 のプラン」が明細で複数件になる
 const topUps = gw.filter((e) => e.cardTopUpOrderTx);
 const checkoutsInWeek = events.filter((e) => e.event === 'credits_available' && inWeek(e.ts));
 

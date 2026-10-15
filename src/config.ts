@@ -79,7 +79,7 @@ export function nvmEnvironment(...keys: (string | undefined)[]): NvmEnvironment 
 }
 
 export function loadGatewayConfig(): GatewayConfig {
-  const nvmApiKey = required('NVM_API_KEY');
+  const nvmApiKey = required('NVM_API_KEY_SELLER');
   const nvmEnv = nvmEnvironment(nvmApiKey);
   const allowLive = process.env.ALLOW_LIVE === 'true';
   const testnetOnly = process.env.UPSTREAM_TESTNET_ONLY !== 'false';
@@ -94,8 +94,8 @@ export function loadGatewayConfig(): GatewayConfig {
     planId: required('NVM_PLAN_ID'),
     agentId: required('NVM_AGENT_ID'),
     upstreams: {
-      osd: required('OSD_BASE_URL'),
-      jin: required('JIN_BASE_URL'),
+      osd: required('UPSTREAM_OSD_URL'),
+      jin: required('UPSTREAM_JIN_URL'),
     },
     maxPerCall: lowerOnly('MAX_USD_PER_CALL', HARD_MAX_PER_CALL),
     maxPerDay: lowerOnly('MAX_USD_PER_DAY', HARD_MAX_PER_DAY),
@@ -107,7 +107,7 @@ export function loadGatewayConfig(): GatewayConfig {
     logReadToken: process.env.LOG_READ_TOKEN || undefined,
     logSalt: required('LOG_SALT'),
     evmPrivateKey: process.env.GATEWAY_EVM_PRIVATE_KEY || undefined,
-    svmPrivateKey: process.env.GATEWAY_SVM_PRIVATE_KEY || undefined,
+    svmPrivateKey: process.env.GATEWAY_WALLET_SECRET || undefined,
   };
   if (cfg.logReadToken && cfg.logReadToken.length < 32) {
     throw new Error('LOG_READ_TOKEN must be at least 32 characters (npm run logs:issue-read-token)');
@@ -119,7 +119,7 @@ export function loadGatewayConfig(): GatewayConfig {
     throw new Error('LOG_SINK=file is for local development only (NODE_ENV=development, sandbox, ALLOW_LIVE unset)');
   }
   if (!cfg.evmPrivateKey && !cfg.svmPrivateKey) {
-    throw new Error('set GATEWAY_EVM_PRIVATE_KEY and/or GATEWAY_SVM_PRIVATE_KEY (a NEW wallet for this gateway only)');
+    throw new Error('set GATEWAY_WALLET_SECRET (Solana, from npm run wallet:new) and/or GATEWAY_EVM_PRIVATE_KEY (a NEW wallet for this gateway only)');
   }
   return cfg;
 }

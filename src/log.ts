@@ -42,7 +42,7 @@ export interface RequestLogEntry {
   date_jst: string;
   /** 匿名化したトークン ID（塩付き SHA-256 の先頭16桁）。トークンが無いリクエストは 'none' */
   tokenId: string;
-  /** プラン種別。このゲートウェイは前払い（starter）だけを受け付ける */
+  /** プラン種別。このゲートウェイは前払い（prepaid-100）だけを受け付ける */
   planKind: 'prepaid';
   /** verify の結果：'valid' / 無効理由 / 'skipped'（verify まで進まなかった） */
   verify: string;

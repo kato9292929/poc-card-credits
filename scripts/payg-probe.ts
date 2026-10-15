@@ -15,7 +15,7 @@
  *   npm run payg:probe            # 1回だけ（記録済みなら止まる）
  *   npm run payg:probe -- --force # 再確認（例：まとめて請求を翌日に確かめる）。記録は追記
  *
- * 必要な環境変数: NVM_ENVIRONMENT=sandbox, NVM_API_KEY（売り手）, NVM_SUBSCRIBER_API_KEY（買い手、Stripe のテストカード登録済み）,
+ * 必要な環境変数: NVM_ENVIRONMENT=sandbox, NVM_API_KEY_SELLER（売り手）, NVM_API_KEY_BUYER（買い手、Stripe のテストカード登録済み）,
  *   NVM_AGENT_ID, NVM_RECEIVER_ADDRESS, PUBLIC_BASE_URL（任意 NVM_PLAN_ID_PAYG, BUYER_CARD_PROVIDER）
  */
 import 'dotenv/config';
@@ -25,8 +25,8 @@ import { Payments, buildPaymentRequired } from '@nevermined-io/payments';
 import { nvmEnvironment, required } from '../src/config.ts';
 import { usdToMicro } from '../src/money.ts';
 
-const sellerKey = required('NVM_API_KEY');
-const buyerKey = required('NVM_SUBSCRIBER_API_KEY');
+const sellerKey = required('NVM_API_KEY_SELLER');
+const buyerKey = required('NVM_API_KEY_BUYER');
 const env = nvmEnvironment(sellerKey, buyerKey);
 if (env !== 'sandbox') {
   throw new Error('payg probe is sandbox-only (NVM_ENVIRONMENT=sandbox and sandbox: keys)');

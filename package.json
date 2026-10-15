@@ -18,7 +18,8 @@
     "test": "tsx --test test/*.test.ts",
     "wallet:new": "tsx scripts/new-wallet.ts",
     "logs:issue-read-token": "tsx scripts/issue-log-read-token.ts",
-    "payg:probe": "tsx scripts/payg-probe.ts"
+    "payg:probe": "tsx scripts/payg-probe.ts",
+    "preflight": "tsx scripts/preflight.ts"
   },
   "dependencies": {
     "@nevermined-io/payments": "1.13.0",

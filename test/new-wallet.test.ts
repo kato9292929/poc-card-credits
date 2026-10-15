@@ -17,7 +17,7 @@ test('wallet:new keys load into the gateway, and only public addresses go to doc
     encoding: 'utf8',
   });
   const get = (re: RegExp) => re.exec(out)![1];
-  const svmKey = get(/GATEWAY_SVM_PRIVATE_KEY=(\S+)/);
+  const svmKey = get(/GATEWAY_WALLET_SECRET=(\S+)/);
   const evmKey = get(/GATEWAY_EVM_PRIVATE_KEY=(\S+)/);
   const buyer = await X402UpstreamBuyer.create({ evmPrivateKey: evmKey, svmPrivateKey: svmKey, assets: loadAssets(), testnetOnly: true, maxPerCall: usdToMicro('0.05') });
   const md = readFileSync(doc, 'utf8');

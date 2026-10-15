@@ -1,9 +1,9 @@
 /**
- * 買い手（法人の担当者）がプランをカードで購入する。Stripe Checkout の URL を出し、
+ * 買い手（利用者）がプランをカードで購入する。Stripe Checkout の URL を出し、
  * 決済完了でクレジットが付与されるまで残高をポーリングして、時刻を log/events.jsonl に記録する。
  * 「購入から利用開始までの時間」（§5）の起点になる。
  *
- *   NVM_API_KEY=<買い手のキー> npm run plan:order
+ *   npm run plan:order
  */
 import 'dotenv/config';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -12,8 +12,8 @@ import { nvmEnvironment, required } from '../src/config.ts';
 import { appendFileSync, mkdirSync } from 'node:fs';
 
 // キーのプレフィックスと NVM_ENVIRONMENT の一致を確かめる（live は ALLOW_LIVE=true が必要）
-const environment = nvmEnvironment(required('NVM_API_KEY'));
-const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY'), environment });
+const environment = nvmEnvironment(required('NVM_API_KEY_BUYER'));
+const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY_BUYER'), environment });
 const planId = required('NVM_PLAN_ID');
 const logDir = process.env.LOG_DIR ?? 'log';
 mkdirSync(logDir, { recursive: true });

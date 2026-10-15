@@ -1,11 +1,12 @@
 {
-  "$comment": "§2 のプラン。価格は仮（§5 の測定後に見直す）。credits × pricing.json の creditUnitUsd が売上換算の基準。",
+  "$comment": "公表値のプラン。credits × pricing.json の creditUnitUsd（$0.01）が売上換算の基準（$1 / 100 = $0.01）。",
   "plans": [
     {
-      "name": "starter",
-      "description": "OSD・JIN 共通クレジット 1,000 回分（1クレジット = $0.01 相当の x402 コール）",
-      "priceUsd": "10",
-      "credits": 1000
+      "name": "prepaid-100",
+      "description": "OSD・JIN 共通 100 クレジット（1クレジット = $0.01 相当の x402 コール）。購入から30日有効",
+      "priceUsd": "1",
+      "credits": 100,
+      "durationDays": 30
     }
   ]
 }

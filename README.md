@@ -1,10 +1,10 @@
 # poc-card-credits — 実証1：カード払いの利用枠をエージェントが per-call で消費する
 
-法人の担当者がカードで利用枠（クレジット）を買い、買い手エージェントがそれを1コールずつ消費して OSD / JIN を使う構成の PoC。
+利用者がカードで利用枠（クレジット）を買い、買い手エージェントがそれを1コールずつ消費して OSD / JIN を使う構成の PoC。
 
 ```
-人（法人の担当者）
-   │ カードでプランを購入（starter: $10 = 1,000 クレジット）     scripts/order-plan.ts
+人（利用者）
+   │ カードでプランを購入（prepaid-100: $1 = 100 クレジット、30日有効）  scripts/order-plan.ts
    ▼
 Nevermined（利用枠の管理・カード決済 / Stripe）
    │ アクセストークン                                          scripts/buyer-token.ts
@@ -41,12 +41,36 @@ payg（都度払い）は本番の比較対象から外した（Stripe の USD �
 | `src/config.ts` | 上限の値（`HARD_MAX_PER_CALL` / `HARD_MAX_PER_DAY`）。環境変数では下げることしかできない |
 | `config/pricing.json` | ルートと価格・クレジットの対応表（§2）。起動時に整合性を検証する |
 | `config/assets.json` | 支払ってよい資産（Base / Solana の USDC）。テストネットとメインネットを区別している |
-| `config/plans.json` | プランの定義（starter） |
+| `config/plans.json` | プランの定義（prepaid-100） |
 | `agents/buyer/` | 検証用の買い手（§4） |
 | `scripts/` | プラン登録・購入・トークン発行・週次集計 |
 | `log/` | `YYYY-MM-DD.jsonl`（ゲートウェイ）、`buyer-YYYY-MM-DD.jsonl`、`events.jsonl`。コミットしない |
 | `reports/` | 週次レポート `YYYY-Www.md`（§5） |
 | `docs/go-live.md` | 本番に移す条件（§6） |
+
+## 起動前チェック（追加指示 §3）
+
+`npm run preflight` で、コマンドごとに足りない環境変数を一覧で出せる（値は表示しない）。一部だけ見るときは `npm run preflight -- gateway` のようにする。未設定のときに各コマンドが要求するものは次のとおり。
+
+| コマンド | 必須（未設定・形式違いなら起動しない） | 任意 |
+|---|---|---|
+| `npm run gateway` | `NVM_API_KEY_SELLER`（接頭辞が `NVM_ENVIRONMENT` と一致）、`NVM_PLAN_ID`、`NVM_AGENT_ID`、`UPSTREAM_JIN_URL`、`UPSTREAM_OSD_URL`、`GATEWAY_WALLET_SECRET`（または `GATEWAY_EVM_PRIVATE_KEY`）、`BLOB_READ_WRITE_TOKEN`、`LOG_SALT` | `PUBLIC_BASE_URL`（既定 `http://localhost:8787`）、`LOG_READ_TOKEN`（32文字以上。未設定なら `GET /logs` を閉じる） |
+| `npm run plan:register -- --plan-id <ID>` | `NVM_API_KEY_SELLER`、`PUBLIC_BASE_URL` | |
+| `npm run plan:order` | `NVM_API_KEY_BUYER`、`NVM_PLAN_ID` | |
+| `npm run buyer:token` | `NVM_API_KEY_BUYER`、`NVM_PLAN_ID`、`NVM_AGENT_ID`、`NVM_DELEGATION_ID` | |
+| `npm run buyer` | `GATEWAY_URL`、`NVM_ACCESS_TOKEN` | |
+| `npm run payg:probe` | `NVM_API_KEY_SELLER`、`NVM_API_KEY_BUYER`、`NVM_AGENT_ID`、`PUBLIC_BASE_URL`、`NVM_RECEIVER_ADDRESS`（`NVM_PLAN_ID_PAYG` があれば不要） | |
+| `npm run report:weekly` | | `GATEWAY_URL` ＋ `LOG_READ_TOKEN`（無ければ開発用のローカルログを読む） |
+
+追加指示 §3 の一覧に無いが、上で必須になっているものは次の3つ。
+
+| 変数 | 内容 |
+|---|---|
+| `NVM_PLAN_ID` | App で作った prepaid-100 の ID |
+| `LOG_SALT` | 任意のランダム文字列 |
+| `PUBLIC_BASE_URL` | プラン登録と payg 試験で使う |
+
+ほかに、`NVM_DELEGATION_ID` / `NVM_ACCESS_TOKEN` / `GATEWAY_URL` は、買い手側の手順で順に作る値。`ALLOW_LIVE=true` は設定しない。
 
 ## セットアップ（テスト環境）
 
@@ -73,11 +97,18 @@ cp .env.example .env
       ```
 
    ローカルで開発するときだけ、`NODE_ENV=development LOG_SINK=file` でファイルに出せる
-3. **Nevermined（sandbox）でプランを登録する。** 売り手のキーで実行し、出力された ID を `.env` の `NVM_AGENT_ID` / `NVM_PLAN_ID` に書く
+3. **プランとエージェントを登録する。**
+   1. prepaid-100（$1・100 クレジット・30日有効）は有効期限が要る。SDK 1.13.0 ではクレジット制のプランに有効期限を指定できないので、Nevermined App（Sandbox）で作る。次のコマンドは、App で入力する値を表示するだけで、登録はしない
 
-   ```bash
-   npm run plan:register
-   ```
+      ```bash
+      npm run plan:register
+      ```
+
+   2. App で作ったプランの ID を `NVM_PLAN_ID` に書き、次を実行する。プランの中身（価格・クレジット数・有効期限）を確かめてからエージェントを登録し、出力された `NVM_AGENT_ID` を `.env` に書く
+
+      ```bash
+      npm run plan:register -- --plan-id <ID>
+      ```
 
 4. **ゲートウェイを起動する。** `/healthz` で次を確認できる
    - 上限
@@ -90,7 +121,7 @@ cp .env.example .env
    curl localhost:8787/healthz
    ```
 
-5. **買い手側の準備**（法人の担当者の役。買い手の NVM API キーで実行）
+5. **買い手側の準備**（利用者の役。`NVM_API_KEY_BUYER` で実行）
    1. Nevermined App（sandbox）でカードを登録し、**小さい上限**で委任を作る（理由は docs/nevermined.md の「自動トップアップ」）
    2. 次のコマンドを実行し、表示された Stripe Checkout で支払う。Nevermined の sandbox は Stripe のテストモードにつながっているので、Stripe のテストカード（`4242 4242 4242 4242`、有効期限は未来の任意の日付）を使う。実際の請求は発生しない。クレジットが付与されるまで待ち、時刻を記録する
 
@@ -119,7 +150,7 @@ Nevermined のカード払いのトークンでは、クレジットが足りな
 | `true`（既定） | 残高が足りなければ、ゲートウェイが settle せずに 402 `insufficient_credits` を返す。指示書 §4 の「残高が尽きたら停止」を再現する | ゲートウェイが返す 402 と、エージェントの停止・再開。Nevermined 自身の挙動ではない |
 | `false` | 残高を見ずに settle する | Nevermined の挙動。自動補充（ログの `cardTopUpOrderTx`）と、委任の上限に達したときのエラー |
 
-自動補充が起きると、$10 のプランがカード明細の複数行になる。週次レポートの「経理上の扱い」に件数を出す。両方の挙動を測るなら、週を分けて設定を切り替える。
+自動補充が起きると、$1 のプランがカード明細の複数行になる。週次レポートの「経理上の扱い」に件数を出す。両方の挙動を測るなら、週を分けて設定を切り替える。
 
 ## ゲートウェイの応答
 
@@ -198,7 +229,7 @@ npm run report:weekly -- 2026-W42
 - 残高切れの挙動（エラーの種類、停止・再開）
 - 明細・領収書の形式
 
-初期値（1クレジット = $0.01、starter = $10 / 1,000 クレジット、JIN series = $0.01）では、売上換算と裏側の原価が同額になる。粗利はカード手数料（Nevermined 2% ＋ Stripe）の分だけマイナスになる見込み。価格を見直すときの基準として測定する（§2）。
+公表値（1クレジット = $0.01、prepaid-100 = $1 / 100 クレジット、JIN series = $0.01）では、売上換算と裏側の原価が同額になる。粗利はカード手数料（Nevermined 2% ＋ Stripe）の分だけマイナスになる見込み。価格を見直すときの基準として測定する（§2）。
 
 ## テスト
 

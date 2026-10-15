@@ -45,7 +45,7 @@
 
 | 項目 | percall（percall 向けの指示書） | credits（credits 向けの指示書） |
 |---|---|---|
-| プラン | prepaid-100（$1、100 クレジット、30日で失効）と payg | starter（$10、1,000 クレジット、期限なし） |
+| プラン | prepaid-100（$1、100 クレジット、30日で失効）と payg | starter（$10、1,000 クレジット、期限なし）。**2026-10-15 の追加指示 §1 で prepaid-100 に確定し、反映済み** |
 | エージェント登録の `endpoints` | ゲートウェイの公開パスを登録する | 登録しない（`:ticker` のようなパスパラメータが使えるか未確認のため） |
 | 買い手のトークン | 買い手が自分の API キーで委任を用意して発行する（`orderPlan` が使えなければ Stripe Checkout の URL を出す） | 人が `buyer:token` で発行し、エージェントは `NVM_ACCESS_TOKEN` から読む |
 | 環境変数の名前 | `NVM_PLAN_ID_PREPAID` / `BUILDER_ADDRESS` / `GATEWAY_WALLET_*` / `PREPAID_BLOCK_TOPUP` | `NVM_PLAN_ID` / `NVM_RECEIVER_ADDRESS` / `GATEWAY_*` / `BLOCK_CARD_TOPUP` |

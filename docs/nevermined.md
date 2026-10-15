@@ -1,6 +1,6 @@
 # Nevermined 仕様の確認記録
 
-確認日: 2026-10-13（作業開始時）。指示書の Nevermined の機能名は想定であり、以下で確認した実際の仕様を優先している。
+確認日: 2026-10-13（作業開始時）。2026-10-15 に追加指示に合わせて更新。指示書の Nevermined の機能名は想定であり、以下で確認した実際の仕様を優先している。
 
 ## 確認した版
 
@@ -15,22 +15,29 @@ SDK を上げるときは、この表と下の「使っている API」を見直
 ## 参照した公式ドキュメント
 
 - 目次: https://nevermined.ai/docs/llms.txt
-- TypeScript SDK（x402 / verify / settle）: https://nevermined.ai/docs/api-reference/typescript/x402.md
-- TypeScript SDK（プラン）: https://nevermined.ai/docs/api-reference/typescript/payment-plans.md
-- 買い手の流れ: https://nevermined.ai/docs/getting-started/ai-agent-purchase.md
-- 法定通貨（カード）決済: https://nevermined.ai/docs/integrate/patterns/fiat-payments.md
-- 料金モデル: https://nevermined.ai/docs/integrate/patterns/payment-models.md
-- 自動トップアップ: https://nevermined.ai/docs/integrate/patterns/top-up.md
-- リクエスト検証: https://nevermined.ai/docs/integrate/patterns/validate-requests.md
-- カード登録: https://nevermined.ai/docs/products/payments/card-enrollment.md
-- 委任（Delegations）: https://nevermined.ai/docs/products/payments/mandates.md
-- FAQ: https://nevermined.ai/docs/products/payments/faq.md
+- TypeScript SDK（x402 / verify / settle）: https://nevermined.ai/docs/api-reference/typescript/x402
+- TypeScript SDK（プラン）: https://nevermined.ai/docs/api-reference/typescript/payment-plans
+- 買い手の流れ: https://nevermined.ai/docs/getting-started/ai-agent-purchase
+- 法定通貨（カード）決済: https://nevermined.ai/docs/integrate/patterns/fiat-payments
+- 料金モデル: https://nevermined.ai/docs/integrate/patterns/payment-models
+- 自動トップアップ: https://nevermined.ai/docs/integrate/patterns/top-up
+- リクエスト検証: https://nevermined.ai/docs/integrate/patterns/validate-requests
+- カード登録: https://nevermined.ai/docs/products/payments/card-enrollment
+- 委任（Delegations）: https://nevermined.ai/docs/products/payments/mandates
+- FAQ: https://nevermined.ai/docs/products/payments/faq
+- API のエラーコード: https://nevermined.ai/docs/development-guide/api-errors/codes
+- Core Concepts: https://nevermined.ai/docs/getting-started/core-concepts
 
-## 指示書の想定と実際の仕様の対応
+公式ドキュメントの URL は `https://nevermined.ai/docs/` 配下にそろえる。例外は Visa の対応カードの範囲で、`/docs/` 配下に該当する記述が無く、製品ページ（https://nevermined.ai/solutions/visa ）にだけ書かれている。`/docs/` の Card Enrollment には対象範囲の記述が無い（2026-10-15 確認）。
+
+## 使っている API（指示書の想定との対応）
 
 | 指示書の想定 | 実際（SDK 1.13.0） | 本リポジトリでの使用箇所 |
 |---|---|---|
-| プラン（利用枠）の作成 | `payments.agents.registerAgentAndPlan(agentMeta, agentApi, planMeta, priceConfig, creditsConfig, 'credits')`。価格は `plans.getFiatPriceConfig(amount, receiver)`、**金額は小数6桁単位**（$10 = `10_000_000n`、セントではない）。最低 $1（下回ると `BCK.PROTOCOL.0047`）。クレジットは `plans.getFixedCreditsConfig(1000n, 1n)` | `scripts/register-plan.ts` |
+| プラン（利用枠）の作成 | prepaid-100（$1・100 クレジット・30 日有効）は有効期限が要るので、**SDK では登録せず Nevermined App で作る**（次の行）。参考として、SDK で作る場合の指定方法を書いておく。価格は `plans.getFiatPriceConfig(amount, receiver)` で、**金額は小数6桁単位**（$1 = `1_000_000n`、セントではない）。クレジットは `plans.getFixedCreditsConfig(100n, 1n)` | App。`scripts/register-plan.ts` が手順を表示する |
+| プランの有効期限（30 日） | SDK 1.13.0 には、**クレジット制のプランに有効期限を付ける正式な指定が無い**。`PlanCreditsConfig.durationSecs` という欄はあるが、次の理由で使えない。`registerCreditsPlan` は `durationSecs ≠ 0` を拒否する（`The creditsConfig.durationSecs must be 0 for credits plans (non-expirable)`、`dist/api/plans-api.js`）。`registerPlan` / `registerAgentAndPlan` は値をそのまま送るだけで、クレジット制＋有効期限の組み合わせは SDK の文書にも公式ドキュメントにも無い。有効期限付きの指定は、期間制プラン（`getExpirableDurationConfig` ＋ `registerTimePlan`）にしか無い。Core Concepts には「1,000 requests valid for 30 days」のような hybrid プランの記述がある。**登録は SDK でせず、App で設定する** | App で作成し、`scripts/register-plan.ts --plan-id` で中身（価格・クレジット数・有効期限）を確かめてからエージェントを登録する |
+| 法定通貨プランの最低額 | **$1**。下回ると `BCK.PROTOCOL.0047`（HTTP 400、"Fiat plan price is below the minimum allowed ($1.00)"）。出典: https://nevermined.ai/docs/api-reference/typescript/payment-plans （"The server-side minimum is $1.00 (1_000_000n); smaller amounts are rejected with BCK.PROTOCOL.0047"）、https://nevermined.ai/docs/development-guide/api-errors/codes#bck-protocol-0047 。SDK 1.13.0 の `getFiatPriceConfig` の説明（`dist/api/plans-api.d.ts`）にも同じ記述がある | prepaid-100 の $1 はちょうど最低額 |
+| エージェントの登録 | `payments.agents.registerAgent(agentMeta, agentApi, [planId])` で、App で作ったプランに紐づける。`endpoints` は登録しない（判断待ち） | `scripts/register-plan.ts` |
 | カード決済 | `payments.plans.orderFiatPlan(planId)` が Stripe Checkout の URL（`result.checkoutLink`）を返す。決済後、Stripe の webhook でクレジットが付与される。Braintree のプランは SDK では買えない（App から） | `scripts/order-plan.ts` |
 | 残高の確認 | `payments.plans.getPlanBalance(planId, holderAddress?)` → `{ balance: bigint, ... }` | `src/ledger/nevermined.ts` |
 | 買い手のトークン | `payments.x402.getX402AccessToken(planId, agentId, { scheme, delegationConfig: { delegationId } })`。**`delegationConfig` は必須**（無いと SDK が例外）。カード払いのプランは `scheme: 'nvm:card-delegation'`、ネットワークは `stripe` | `scripts/buyer-token.ts` |
@@ -57,7 +64,7 @@ top-up のページによると、カード委任付きのトークンでクレ�
 
 ### 委任（delegation）の必要性
 
-SDK 1.13.0 では、どのスキームでもトークン発行に `delegationConfig` が必須。プリペイドのクレジットだけを使う場合に委任なしでトークンを出す方法は、公式ドキュメントでは確認できなかった。したがって買い手（法人の担当者）は次の手順を踏む。
+SDK 1.13.0 では、どのスキームでもトークン発行に `delegationConfig` が必須。プリペイドのクレジットだけを使う場合に委任なしでトークンを出す方法は、公式ドキュメントでは確認できなかった。したがって買い手（利用者）は次の手順を踏む。
 
 1. Nevermined App でカードを登録する
 2. 小さい上限で委任を作る
@@ -77,12 +84,12 @@ SDK 1.13.0 では、どのスキームでもトークン発行に `delegationCon
 
 ## payg（都度払い）の扱い
 
-**本番の比較対象から外した。** 本番は starter（前払い）だけで測る。ゲートウェイは starter のプラン ID でしか検証しないので、payg のトークンでは 402 になる。
+**本番の比較対象から外した。** 本番は prepaid-100（前払い）だけで測る。ゲートウェイは prepaid-100 のプラン ID でしか検証しないので、payg のトークンでは 402 になる。
 
 理由は2つある。
 
 - Stripe は1回の請求に最低額を設けていて、USD は **$0.50**（JPY は ¥50）。決済額が入金通貨に換算される場合は、その通貨の最低額が適用される（[Stripe: Minimum charge amount by currency](https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts)）。1コール $0.01 の都度払いは、カード1回の請求としては成り立たない
-- Nevermined 側にも、法定通貨のプランは最低 $1 という制約がある（`BCK.PROTOCOL.0047`）。SDK 1.13.0 の `getPayAsYouGoPriceConfig` は暗号資産専用で、カードの都度払いを作る関数は無い
+- Nevermined 側にも、法定通貨のプランは最低 $1 という制約がある（`BCK.PROTOCOL.0047`、上の「使っている API」の表）。SDK 1.13.0 の `getPayAsYouGoPriceConfig` は暗号資産専用で、カードの都度払いを作る関数は無い
 
 代わりに **Sandbox で1回だけ** $0.01 の請求を試し、次の3点を下の表に記録する。
 
@@ -122,25 +129,28 @@ SDK 1.13.0 では、どのスキームでもトークン発行に `delegationCon
 
 ## 対応カードの範囲（§6 の確認事項）
 
+更新: 2026-10-15
+
 | 項目 | 公式情報 | 出典 |
 |---|---|---|
-| ブランド | Visa / Mastercard / Amex / Discover（Visa・Stripe・Braintree 経由）。Stripe はクレジット・デビットとも対応 | FAQ |
-| 国 | **記載なし**。Visa Agentic Token のパイロットは米国の発行会社が中心、という記述のみ | FAQ |
-| 法人カード | **記載なし** | FAQ、card-enrollment |
-| プリペイドカード・3DS | 記載なし | card-enrollment |
-| 通貨 | USD / EUR | fiat-payments |
-| 手数料 | Nevermined 2% ＋ Stripe の手数料（通貨・地域で変わる）。どちらも Stripe Connect への入金時に自動で差し引かれる | fiat-payments、FAQ |
-| カード1枚あたりの上限 | 有効な委任の合計で既定 $10（パイロット期間）。引き上げは Nevermined に相談 | card-enrollment、mandates |
+| Visa 経由（Visa Intelligent Commerce）で登録できるカード | **米国発行の個人向け（consumer）Visa のみ。** 法人・ビジネスカードと Chase 発行のカードは未対応（"US-issued consumer Visa cards only." "Corporate/business cards and Chase-issued cards are not yet supported for VIC enrollment."） | https://nevermined.ai/solutions/visa |
+| ブランド（全体） | Visa / Mastercard / Amex / Discover（Visa・Stripe・Braintree 経由）。Stripe はクレジット・デビットとも対応 | FAQ |
+| Stripe Checkout 経由（本 PoC のカード決済）の発行国・法人カード | **記載なし**（Visa 経由と同じ制限が当てはまるかは未確認） | FAQ、Card Enrollment |
+| プリペイドカード・3DS | 記載なし。Stripe は発行会社が求める場合に 3DS | Card Enrollment、Card Delegation |
+| 通貨 | USD / EUR | Fiat Payments |
+| 手数料 | Nevermined 2% ＋ Stripe の手数料（通貨・地域で変わる）。どちらも Stripe Connect への入金時に自動で差し引かれる | Fiat Payments、FAQ |
+| カード1枚あたりの上限 | 有効な委任の合計で既定 $10（パイロット期間）。引き上げは Nevermined に相談 | Card Enrollment、Delegations |
 
-**結論（2026-10-13 時点）**: 法人カードと対応国は公式情報で確認できない。§6 に従い、Nevermined から法人カード（日本発行を含む）に対応しているという回答が得られるまでは、**本番の利用者を個人カードに限定する**。問い合わせの結果はこの表に追記する。
+**結論（2026-10-15 時点）**: **Visa 経由は個人カードに限定する**（米国発行の個人向け Visa のみ。法人カード・Chase 発行は不可）。Stripe Checkout 経由に同じ制限が当てはまるかは、下の問い合わせ事項とする。
 
 ## 未確認・要問い合わせ
 
 - [ ] payg の Sandbox 試験（上の記録表）
-
+- [ ] Nevermined App で「クレジット制＋有効期限 30 日」のプランを作れるか（SDK では指定できない）
 - [ ] 自動トップアップを無効にできるか
 - [ ] 委任なしで、プリペイドのクレジットだけを使うトークンを発行できるか
-- [ ] 対応国（日本発行カード）、法人カード
+- [ ] Stripe Checkout 経由でも、Visa 経由と同じ制限（発行国・法人カード）が当てはまるか
+- [ ] 日本の Stripe アカウントで Stripe Connect が使えるか
 - [ ] sandbox の Stripe Checkout で使えるテストカード（Stripe 標準の `4242…` で動くか）
 - [ ] カード決済の領収書・請求書の形式（Stripe のレシートか、Nevermined の発行か）
 - [ ] エージェント登録の `endpoints` 許可リストで `:ticker` のようなパスパラメータが書けるか（現在は未登録）

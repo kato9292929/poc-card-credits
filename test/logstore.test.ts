@@ -131,16 +131,16 @@ test('config: LOG_SINK=file only with NODE_ENV=development; blob needs its token
 
 test('config: API key prefix must match NVM_ENVIRONMENT; live needs ALLOW_LIVE (moved from percall)', async () => {
   const { loadGatewayConfig, nvmEnvironment } = await import('../src/config.ts');
-  assert.throws(() => withEnv({ ...BASE, NVM_API_KEY: 'live:k' }, () => loadGatewayConfig()), /does not match/);
-  assert.throws(() => withEnv({ ...BASE, NVM_API_KEY: 'k' }, () => loadGatewayConfig()), /does not match/);
+  assert.throws(() => withEnv({ ...BASE, NVM_API_KEY_SELLER: 'live:k' }, () => loadGatewayConfig()), /does not match/);
+  assert.throws(() => withEnv({ ...BASE, NVM_API_KEY_SELLER: 'k' }, () => loadGatewayConfig()), /does not match/);
   assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'live' }, () => nvmEnvironment('live:k')), /ALLOW_LIVE/);
   assert.equal(withEnv({ NVM_ENVIRONMENT: 'live', ALLOW_LIVE: 'true' }, () => nvmEnvironment('live:k')), 'live');
   assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment('sandbox:a', 'live:b')), /does not match/);
 });
 
 const BASE = {
-  NVM_API_KEY: 'sandbox:k', NVM_PLAN_ID: 'p', NVM_AGENT_ID: 'a', OSD_BASE_URL: 'https://o', JIN_BASE_URL: 'https://j',
-  LOG_SALT: 's', GATEWAY_SVM_PRIVATE_KEY: 'x', NVM_ENVIRONMENT: 'sandbox', BLOB_READ_WRITE_TOKEN: 't',
+  NVM_API_KEY_SELLER: 'sandbox:k', NVM_PLAN_ID: 'p', NVM_AGENT_ID: 'a', UPSTREAM_OSD_URL: 'https://o', UPSTREAM_JIN_URL: 'https://j',
+  LOG_SALT: 's', GATEWAY_WALLET_SECRET: 'x', NVM_ENVIRONMENT: 'sandbox', BLOB_READ_WRITE_TOKEN: 't',
 };
 
 function withEnv<T>(env: Record<string, string>, fn: () => T): T {

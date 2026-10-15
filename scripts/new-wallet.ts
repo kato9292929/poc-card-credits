@@ -42,7 +42,7 @@ mkdirSync(logDir, { recursive: true });
 appendFileSync(`${logDir}/events.jsonl`, JSON.stringify({ ts: now, event: 'gateway_wallet_created', svmAddress, evmAddress: evm?.address }) + '\n');
 
 console.log(`# 新規作成したゲートウェイ専用ウォレット（${now}）。.env に貼る（コミットしない）
-GATEWAY_SVM_PRIVATE_KEY=${svmKey}${evm ? `\nGATEWAY_EVM_PRIVATE_KEY=${evm.key}` : ''}
+GATEWAY_WALLET_SECRET=${svmKey}${evm ? `\nGATEWAY_EVM_PRIVATE_KEY=${evm.key}` : ''}
 
 # 公開アドレス（${doc} に追記済み。コミットする）
 #   ${svmNetwork}: ${svmAddress}${evm ? `\n#   ${evm.network}: ${evm.address}` : ''}`);
