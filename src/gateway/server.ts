@@ -1,5 +1,5 @@
 import express from 'express';
-import { loadGatewayConfig } from '../config.ts';
+import { HARD_MAX_PER_CALL, loadGatewayConfig } from '../config.ts';
 import { assertRoutesWithinCap, loadPricing } from '../pricing.ts';
 import { jstDay } from '../log.ts';
 import { VercelBlobLogStore } from '../logstore/blob.ts';
@@ -16,7 +16,13 @@ import { microToUsd } from '../money.ts';
 
 const cfg = loadGatewayConfig();
 const pricing = loadPricing();
-assertRoutesWithinCap(pricing, cfg.maxPerCall);
+// コードに固定した上限（$0.05）を超えるルートがあれば起動しない
+assertRoutesWithinCap(pricing, HARD_MAX_PER_CALL);
+// 環境変数で上限を下げた結果、超えるルートがある場合は起動はする（そのルートは署名前に拒否される。Sandbox での上限の確認用）
+const overLowered = pricing.routes.filter((r) => r.price > cfg.maxPerCall);
+if (overLowered.length) {
+  console.warn(`[cap] MAX_USD_PER_CALL=$${microToUsd(cfg.maxPerCall)} より高いルートは署名前に拒否される: ${overLowered.map((r) => `${r.id}=$${r.priceUsd}`).join(', ')}`);
+}
 // ログの保存先：既定は Vercel Blob。ローカルファイルは開発時だけ（LOG_SINK=file）
 const store: LogStore =
   cfg.logSink === 'blob' ? new VercelBlobLogStore({ token: cfg.blobReadWriteToken! }) : new FileLogStore(cfg.logDir);

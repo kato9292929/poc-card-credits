@@ -48,29 +48,42 @@ payg（都度払い）は本番の比較対象から外した（Stripe の USD �
 | `reports/` | 週次レポート `YYYY-Www.md`（§5） |
 | `docs/go-live.md` | 本番に移す条件（§6） |
 
-## 起動前チェック（追加指示 §3）
+## 起動前チェック（追加指示 v2 §3）
 
-`npm run preflight` で、コマンドごとに足りない環境変数を一覧で出せる（値は表示しない）。一部だけ見るときは `npm run preflight -- gateway` のようにする。未設定のときに各コマンドが要求するものは次のとおり。
+`npm run preflight` は、追加指示 v2 §3 の一覧が揃っているかを確かめる。値は表示しない。通れば終了コード 0 で、Sandbox での確認（§4）に進んでよい。
+
+| 用途 | コマンド |
+|---|---|
+| コマンドごとの一覧すべて | `npm run preflight -- --all` |
+| 1つのコマンドだけ | `npm run preflight -- gateway` など |
+
+§3 の一覧は次の10個。
+
+- `NVM_API_KEY_SELLER`
+- `NVM_API_KEY_BUYER`
+- `NVM_PLAN_ID`
+- `NVM_AGENT_ID`
+- `BLOB_READ_WRITE_TOKEN`
+- `UPSTREAM_JIN_URL`
+- `UPSTREAM_OSD_URL`
+- `GATEWAY_WALLET_SECRET`
+- `LOG_SALT`
+- `PUBLIC_BASE_URL`
+
+コマンドごとに要求するものは次のとおり。
 
 | コマンド | 必須（未設定・形式違いなら起動しない） | 任意 |
 |---|---|---|
 | `npm run gateway` | `NVM_API_KEY_SELLER`（接頭辞が `NVM_ENVIRONMENT` と一致）、`NVM_PLAN_ID`、`NVM_AGENT_ID`、`UPSTREAM_JIN_URL`、`UPSTREAM_OSD_URL`、`GATEWAY_WALLET_SECRET`（または `GATEWAY_EVM_PRIVATE_KEY`）、`BLOB_READ_WRITE_TOKEN`、`LOG_SALT` | `PUBLIC_BASE_URL`（既定 `http://localhost:8787`）、`LOG_READ_TOKEN`（32文字以上。未設定なら `GET /logs` を閉じる） |
-| `npm run plan:register -- --plan-id <ID>` | `NVM_API_KEY_SELLER`、`PUBLIC_BASE_URL` | |
+| `npm run plan:register -- --plan-id <ID>` | `NVM_API_KEY_SELLER`、`PUBLIC_BASE_URL` | `BUYER_OSD_PATH`（`:ticker` 付きの endpoints が拒否されたときに列挙する実パス。カンマ区切り可。既定 `/osd/catalysts/AAPL`） |
+| `npm run plan:register -- --try-sdk-expiry` | `NVM_API_KEY_SELLER`、`NVM_RECEIVER_ADDRESS`（Sandbox のみ） | |
 | `npm run plan:order` | `NVM_API_KEY_BUYER`、`NVM_PLAN_ID` | |
-| `npm run buyer:token` | `NVM_API_KEY_BUYER`、`NVM_PLAN_ID`、`NVM_AGENT_ID`、`NVM_DELEGATION_ID` | |
+| `npm run buyer:token` | `NVM_API_KEY_BUYER`、`NVM_PLAN_ID`、`NVM_AGENT_ID` | `BUYER_DELEGATION_LIMIT_CENTS`（50〜100。下げるときだけ）、`BUYER_CARD_PROVIDER`（既定 `stripe`） |
 | `npm run buyer` | `GATEWAY_URL`、`NVM_ACCESS_TOKEN` | |
 | `npm run payg:probe` | `NVM_API_KEY_SELLER`、`NVM_API_KEY_BUYER`、`NVM_AGENT_ID`、`PUBLIC_BASE_URL`、`NVM_RECEIVER_ADDRESS`（`NVM_PLAN_ID_PAYG` があれば不要） | |
 | `npm run report:weekly` | | `GATEWAY_URL` ＋ `LOG_READ_TOKEN`（無ければ開発用のローカルログを読む） |
 
-追加指示 §3 の一覧に無いが、上で必須になっているものは次の3つ。
-
-| 変数 | 内容 |
-|---|---|
-| `NVM_PLAN_ID` | App で作った prepaid-100 の ID |
-| `LOG_SALT` | 任意のランダム文字列 |
-| `PUBLIC_BASE_URL` | プラン登録と payg 試験で使う |
-
-ほかに、`NVM_DELEGATION_ID` / `NVM_ACCESS_TOKEN` / `GATEWAY_URL` は、買い手側の手順で順に作る値。`ALLOW_LIVE=true` は設定しない。
+`NVM_ACCESS_TOKEN` と `GATEWAY_URL` は、買い手側の手順で順に作る値。`ALLOW_LIVE=true` は設定しない。
 
 ## セットアップ（テスト環境）
 
@@ -104,11 +117,14 @@ cp .env.example .env
       npm run plan:register
       ```
 
-   2. App で作ったプランの ID を `NVM_PLAN_ID` に書き、次を実行する。プランの中身（価格・クレジット数・有効期限）を確かめてからエージェントを登録し、出力された `NVM_AGENT_ID` を `.env` に書く
+   2. App で作ったプランの ID を `NVM_PLAN_ID` に書き、次を実行する。プランの中身（価格・クレジット数・有効期限）を確かめてから、エージェントを `endpoints` 付きで登録する。出力された `NVM_AGENT_ID` を `.env` に書く
 
       ```bash
       npm run plan:register -- --plan-id <ID>
       ```
+
+      `endpoints` は、ゲートウェイの公開パス（`/jin/series`、`/jin/movers`、`/osd/catalysts/:ticker`）を登録する。`:ticker` 付きのパターンが拒否されたら、`BUYER_OSD_PATH` の実パスを列挙して登録し直す。どちらで登録できたかは出力と `log/events.jsonl` に出る
+   3. App で「クレジット制＋有効期限」が作れなかったときだけ、`npm run plan:register -- --try-sdk-expiry` を1回実行する。`registerPlan` に有効期限 30 日を直接渡して、受け付けられるかを試す
 
 4. **ゲートウェイを起動する。** `/healthz` で次を確認できる
    - 上限
@@ -122,17 +138,20 @@ cp .env.example .env
    ```
 
 5. **買い手側の準備**（利用者の役。`NVM_API_KEY_BUYER` で実行）
-   1. Nevermined App（sandbox）でカードを登録し、**小さい上限**で委任を作る（理由は docs/nevermined.md の「自動トップアップ」）
+   1. Nevermined App（sandbox）でカードを登録する。委任は次の 3 で `buyer:token` が作る
    2. 次のコマンドを実行し、表示された Stripe Checkout で支払う。Nevermined の sandbox は Stripe のテストモードにつながっているので、Stripe のテストカード（`4242 4242 4242 4242`、有効期限は未来の任意の日付）を使う。実際の請求は発生しない。クレジットが付与されるまで待ち、時刻を記録する
 
       ```bash
       npm run plan:order
       ```
 
-   3. アクセストークンを発行し、`.env` の `NVM_ACCESS_TOKEN` に書く。買い手エージェントはトークンをこの環境変数から読むだけで、自分では発行しない。委任の作成時刻とトークンの発行時刻は `log/events.jsonl` に記録される
+   3. 委任を用意してアクセストークンを発行し、出力を `.env` の `NVM_ACCESS_TOKEN` に書く
+      - 委任は、有効なもの（通貨 usd、上限 100¢ 以下、期限内、残りの予算あり）があれば再利用し、無ければ登録済みのカードから通貨 usd・上限 100¢ で作る
+      - 上限 100¢ はコードに固定で、`BUYER_DELEGATION_LIMIT_CENTS` では下げることしかできない（理由は docs/nevermined.md の「自動トップアップ」）
+      - 委任の作成時刻とトークンの発行時刻は `log/events.jsonl` に記録される
 
       ```bash
-      NVM_DELEGATION_ID=... npm run buyer:token
+      npm run buyer:token
       ```
 
 6. **買い手エージェントを起動する。** 動作確認だけなら `npm run buyer -- --once`
@@ -221,13 +240,16 @@ npm run report:weekly            # 先週分（GATEWAY_URL と LOG_READ_TOKEN �
 npm run report:weekly -- 2026-W42
 ```
 
-レポートの項目は次のとおり。
+レポートの項目は次の6つ（追加指示 v2 §5）。出せない項目は「未計測（理由）」と書く。
 
-- カード手数料と売上に対する割合
-- 1コールあたりの原価・粗利
-- 購入から利用開始までの時間
-- 残高切れの挙動（エラーの種類、停止・再開）
-- 明細・領収書の形式
+| 項目 | 出し方 |
+|---|---|
+| カード手数料 | `reports/inputs/card-payments.json`（Stripe の明細から転記。Nevermined 2% ＋ Stripe の手数料）と、売上に対する割合 |
+| 1コールあたりの原価 | ログの `upstreamTx` がある行の x402 の額 ＋ チェーン手数料 |
+| 1コールあたりの粗利 | クレジット換算の売上 − 原価 − カード手数料の按分 |
+| 購入から利用開始までの時間 | 決済完了 → 委任作成 → トークン発行 → 最初の 200 の各区間（`log/events.jsonl` とゲートウェイのログ） |
+| 残高切れの挙動 | 402 の回数（結果別）、買い手の停止・再開の時刻 |
+| 経理上の扱い | 記入欄だけ置く（人が記録する） |
 
 公表値（1クレジット = $0.01、prepaid-100 = $1 / 100 クレジット、JIN series = $0.01）では、売上換算と裏側の原価が同額になる。粗利はカード手数料（Nevermined 2% ＋ Stripe）の分だけマイナスになる見込み。価格を見直すときの基準として測定する（§2）。
 

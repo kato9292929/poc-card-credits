@@ -97,3 +97,20 @@ export function assertRoutesWithinCap(pricing: Pricing, maxPerCall: bigint): voi
     throw new Error(`pricing: routes exceed the per-call cap: ${over.map((r) => `${r.id}=$${r.priceUsd}`).join(', ')}`);
   }
 }
+
+/**
+ * エージェント登録の endpoints（Nevermined の URL 許可リスト）を作る（追加指示 v2 §2）。
+ * - pattern: ルートのパスをそのまま（/osd/catalysts/:ticker）
+ * - expanded: パラメータ付きのルートは、買い手エージェントが呼ぶ実パスに展開する
+ */
+export function agentEndpoints(pricing: Pricing, baseUrl: string, buyerPaths: string[]) {
+  const base = baseUrl.replace(/\/$/, '');
+  return {
+    pattern: pricing.routes.map((r) => ({ [r.method]: `${base}${r.path}` })),
+    expanded: pricing.routes.flatMap((r) =>
+      r.paramNames.length === 0
+        ? [{ [r.method]: `${base}${r.path}` }]
+        : buyerPaths.filter((p) => r.pattern.test(p)).map((p) => ({ [r.method]: `${base}${p}` })),
+    ),
+  };
+}

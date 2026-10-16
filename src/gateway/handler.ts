@@ -86,7 +86,8 @@ export function createHandler(deps: GatewayDeps) {
     if (!matched) return finish(json(404, { error: 'not_found' }), { outcome: 'no_route' });
     const { route } = matched;
     entry.routeId = route.id;
-    const endpoint = `${deps.publicBaseUrl}${route.path}`;
+    // 実際に呼ばれた URL（:ticker を展開した値）。エージェント登録の endpoints と Nevermined が照合する
+    const endpoint = `${deps.publicBaseUrl}${req.path}`;
     const paymentRequiredHeader = () => ({ 'payment-required': b64(deps.ledger.paymentRequired(endpoint, route.method)) });
 
     const token = req.header('payment-signature');

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertRoutesWithinCap, loadPricing, matchRoute, parsePricing } from '../src/pricing.ts';
+import { agentEndpoints, assertRoutesWithinCap, loadPricing, matchRoute, parsePricing } from '../src/pricing.ts';
 import { HARD_MAX_PER_CALL } from '../src/config.ts';
 
 test('config/pricing.json is valid and credits match x402 price', () => {
@@ -34,4 +34,19 @@ test('a route priced above the per-call cap prevents startup', () => {
     routes: [{ id: 'big', method: 'GET', path: '/big', upstream: 'jin', upstreamPath: '/big', priceUsd: '0.06', credits: 6 }],
   });
   assert.throws(() => assertRoutesWithinCap(p, HARD_MAX_PER_CALL), /big=\$0.06/);
+});
+
+test('agent endpoints: pattern form keeps :ticker, expanded form lists the buyer paths', () => {
+  const { pattern, expanded } = agentEndpoints(loadPricing(), 'https://gw.example/', ['/osd/catalysts/AAPL', '/osd/catalysts/7203.T', '/nope']);
+  assert.deepEqual(pattern, [
+    { GET: 'https://gw.example/jin/series' },
+    { GET: 'https://gw.example/jin/movers' },
+    { GET: 'https://gw.example/osd/catalysts/:ticker' },
+  ]);
+  assert.deepEqual(expanded, [
+    { GET: 'https://gw.example/jin/series' },
+    { GET: 'https://gw.example/jin/movers' },
+    { GET: 'https://gw.example/osd/catalysts/AAPL' },
+    { GET: 'https://gw.example/osd/catalysts/7203.T' },
+  ]);
 });

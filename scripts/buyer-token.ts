@@ -1,59 +1,62 @@
 /**
- * 買い手エージェント用の x402 アクセストークンを発行して表示する（買い手の NVM API キーで実行）。
- * 出力を agents/buyer の NVM_ACCESS_TOKEN に入れる。
+ * 買い手（利用者）のカード委任を用意し、x402 アクセストークンを発行して表示する（追加指示 v2 §1）。
+ * 買い手の sandbox: キー（NVM_API_KEY_BUYER）で実行する。出力を agents/buyer の NVM_ACCESS_TOKEN に入れる。
  *
- * @nevermined-io/payments 1.13.0 では、トークン発行に delegationConfig.delegationId が必須。
- * カード払いのプランは scheme 'nvm:card-delegation' を使い、委任（delegation）は
- * Nevermined App でカードを登録して作成しておく（docs/nevermined.md 参照）。
- * 委任には支出上限（spendingLimitCents）があり、クレジットが尽きたときの自動トップアップも
- * この上限の範囲で行われる。PoC では上限を小さくしておくこと（docs/nevermined.md「自動トップアップ」）。
+ * 1. 委任：有効なものがあれば再利用し、無ければ登録済みのカードから通貨 usd・上限 100¢ で作る
+ *    （上限はコードに固定。BUYER_DELEGATION_LIMIT_CENTS で下げることだけできる）
+ * 2. トークン：その委任 ID で、scheme 'nvm:card-delegation' のトークンを発行する
+ * 3. 委任の作成時刻とトークンの発行時刻を log/events.jsonl に残す（週次レポートの区間計測に使う）
  *
- *   NVM_DELEGATION_ID=<uuid> npm run buyer:token
+ * 委任の上限は、クレジットが尽きたときのカードへの自動補充の上限にもなる（docs/nevermined.md「自動トップアップ」）。
+ *
+ *   npm run buyer:token
  */
 import 'dotenv/config';
 import { Payments } from '@nevermined-io/payments';
 import { appendFileSync, mkdirSync } from 'node:fs';
-import { nvmEnvironment, required } from '../src/config.ts';
+import { delegationLimitCents, nvmEnvironment, required } from '../src/config.ts';
 import { anonymize } from '../src/log.ts';
+import { ensureDelegation, type CardProvider } from '../src/buyer/delegation.ts';
 
 // キーのプレフィックスと NVM_ENVIRONMENT の一致を確かめる（live は ALLOW_LIVE=true が必要）
-const environment = nvmEnvironment(required('NVM_API_KEY_BUYER'));
-const payments = Payments.getInstance({ nvmApiKey: required('NVM_API_KEY_BUYER'), environment });
+const apiKey = required('NVM_API_KEY_BUYER');
+const environment = nvmEnvironment(apiKey);
+const payments = Payments.getInstance({ nvmApiKey: apiKey, environment });
 const planId = required('NVM_PLAN_ID');
 const agentId = required('NVM_AGENT_ID');
-const delegationId = process.env.NVM_DELEGATION_ID;
+const provider = (process.env.BUYER_CARD_PROVIDER ?? 'stripe') as CardProvider;
+const limitCents = delegationLimitCents();
 
-if (!delegationId) {
-  const ds = await payments.delegation.listDelegations({ accessible: true });
-  console.error('NVM_DELEGATION_ID が未設定です。使える委任:');
-  console.error(JSON.stringify(ds, null, 2));
-  process.exit(1);
-}
-
-const scheme = (process.env.NVM_TOKEN_SCHEME ?? 'nvm:card-delegation') as 'nvm:card-delegation' | 'nvm:erc4337';
-const { accessToken, tokenVersion } = await payments.x402.getX402AccessToken(planId, agentId, {
-  scheme,
-  delegationConfig: { delegationId },
-});
-// 「購入から利用開始まで」（§5）の区間に、委任の作成とトークン発行も入るので時刻を残す
-const delegation = (await payments.delegation.listDelegations()).delegations.find((d) => d.delegationId === delegationId);
 const logDir = process.env.LOG_DIR ?? 'log';
 mkdirSync(logDir, { recursive: true });
-appendFileSync(
-  `${logDir}/events.jsonl`,
-  JSON.stringify({
-    ts: new Date().toISOString(),
-    event: 'token_issued',
-    environment,
-    planId,
-    scheme,
-    tokenVersion,
-    tokenId: anonymize(accessToken, process.env.LOG_SALT ?? 'buyer'),
-    delegationId: delegationId.slice(0, 8),
-    delegationCreatedAt: delegation?.createdAt,
-    delegationLimitCents: delegation?.spendingLimitCents,
-  }) + '\n',
-);
-console.error(`tokenVersion=${tokenVersion} scheme=${scheme}`);
+const event = (e: object) => appendFileSync(`${logDir}/events.jsonl`, JSON.stringify({ environment, planId, ...e }) + '\n');
+
+const d = await ensureDelegation(payments.delegation, { provider, limitCents, durationSecs: 30 * 86_400 });
+event({
+  ts: d.createdAt,
+  event: d.reused ? 'delegation_reused' : 'delegation_created',
+  delegationId: d.delegationId.slice(0, 8),
+  delegationCreatedAt: d.createdAt,
+  spendingLimitCents: d.spendingLimitCents,
+  provider,
+  ...(d.reused ? { reusedAt: new Date().toISOString() } : {}),
+});
+console.error(`${d.reused ? '既存の委任を再利用' : '委任を作成'}: ${d.delegationId.slice(0, 8)}…（上限 ${d.spendingLimitCents}¢、${provider}、作成 ${d.createdAt}）`);
+
+const { accessToken, tokenVersion } = await payments.x402.getX402AccessToken(planId, agentId, {
+  scheme: 'nvm:card-delegation',
+  network: provider,
+  delegationConfig: { delegationId: d.delegationId },
+});
+event({
+  ts: new Date().toISOString(),
+  event: 'token_issued',
+  scheme: 'nvm:card-delegation',
+  tokenVersion,
+  tokenId: anonymize(accessToken, process.env.LOG_SALT ?? 'buyer'),
+  delegationId: d.delegationId.slice(0, 8),
+  delegationCreatedAt: d.createdAt,
+});
+console.error(`tokenVersion=${tokenVersion}`);
 if (tokenVersion === 3) console.error('注意: v3 トークンは1回限り。買い手エージェントは再利用できる v2 トークンを前提にしている。');
 console.log(accessToken);

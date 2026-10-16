@@ -37,7 +37,8 @@ SDK を上げるときは、この表と下の「使っている API」を見直
 | プラン（利用枠）の作成 | prepaid-100（$1・100 クレジット・30 日有効）は有効期限が要るので、**SDK では登録せず Nevermined App で作る**（次の行）。参考として、SDK で作る場合の指定方法を書いておく。価格は `plans.getFiatPriceConfig(amount, receiver)` で、**金額は小数6桁単位**（$1 = `1_000_000n`、セントではない）。クレジットは `plans.getFixedCreditsConfig(100n, 1n)` | App。`scripts/register-plan.ts` が手順を表示する |
 | プランの有効期限（30 日） | SDK 1.13.0 には、**クレジット制のプランに有効期限を付ける正式な指定が無い**。`PlanCreditsConfig.durationSecs` という欄はあるが、次の理由で使えない。`registerCreditsPlan` は `durationSecs ≠ 0` を拒否する（`The creditsConfig.durationSecs must be 0 for credits plans (non-expirable)`、`dist/api/plans-api.js`）。`registerPlan` / `registerAgentAndPlan` は値をそのまま送るだけで、クレジット制＋有効期限の組み合わせは SDK の文書にも公式ドキュメントにも無い。有効期限付きの指定は、期間制プラン（`getExpirableDurationConfig` ＋ `registerTimePlan`）にしか無い。Core Concepts には「1,000 requests valid for 30 days」のような hybrid プランの記述がある。**登録は SDK でせず、App で設定する** | App で作成し、`scripts/register-plan.ts --plan-id` で中身（価格・クレジット数・有効期限）を確かめてからエージェントを登録する |
 | 法定通貨プランの最低額 | **$1**。下回ると `BCK.PROTOCOL.0047`（HTTP 400、"Fiat plan price is below the minimum allowed ($1.00)"）。出典: https://nevermined.ai/docs/api-reference/typescript/payment-plans （"The server-side minimum is $1.00 (1_000_000n); smaller amounts are rejected with BCK.PROTOCOL.0047"）、https://nevermined.ai/docs/development-guide/api-errors/codes#bck-protocol-0047 。SDK 1.13.0 の `getFiatPriceConfig` の説明（`dist/api/plans-api.d.ts`）にも同じ記述がある | prepaid-100 の $1 はちょうど最低額 |
-| エージェントの登録 | `payments.agents.registerAgent(agentMeta, agentApi, [planId])` で、App で作ったプランに紐づける。`endpoints` は登録しない（判断待ち） | `scripts/register-plan.ts` |
+| エージェントの登録 | `payments.agents.registerAgent(agentMeta, { endpoints: [{ GET: url }, ...], agentDefinitionUrl }, [planId])` で、App で作ったプランに紐づける。`endpoints` には、ゲートウェイの公開パスを登録する（追加指示 v2 §2）。まず `/osd/catalysts/:ticker` をパターンのまま試し、拒否されたら買い手が呼ぶ実パス（`BUYER_OSD_PATH`）を列挙して登録し直す。**どちらの形で登録できたかは Sandbox で確かめてから、この欄に書く**（下の「未確認」参照）。ゲートウェイは、実際に呼ばれた URL（ticker を展開したもの）を `paymentRequired.resource.url` に入れる | `scripts/register-plan.ts`、`src/gateway/handler.ts` |
+| 委任の作成 | `payments.delegation.createDelegation({ provider, providerPaymentMethodId, spendingLimitCents, durationSecs, currency: 'usd' })`。カードは `listPaymentMethods({ provider })` で取る。既存の委任は `listDelegations({ accessible: true, provider })` で探し、次の条件をすべて満たすものを再利用する：Active、通貨 usd、上限 100¢ 以下、期限内、残りの予算あり。上限 100¢（`spendingLimitCents: 100`）はコードに固定 | `src/buyer/delegation.ts`、`scripts/buyer-token.ts` |
 | カード決済 | `payments.plans.orderFiatPlan(planId)` が Stripe Checkout の URL（`result.checkoutLink`）を返す。決済後、Stripe の webhook でクレジットが付与される。Braintree のプランは SDK では買えない（App から） | `scripts/order-plan.ts` |
 | 残高の確認 | `payments.plans.getPlanBalance(planId, holderAddress?)` → `{ balance: bigint, ... }` | `src/ledger/nevermined.ts` |
 | 買い手のトークン | `payments.x402.getX402AccessToken(planId, agentId, { scheme, delegationConfig: { delegationId } })`。**`delegationConfig` は必須**（無いと SDK が例外）。カード払いのプランは `scheme: 'nvm:card-delegation'`、ネットワークは `stripe` | `scripts/buyer-token.ts` |
@@ -67,11 +68,10 @@ top-up のページによると、カード委任付きのトークンでクレ�
 SDK 1.13.0 では、どのスキームでもトークン発行に `delegationConfig` が必須。プリペイドのクレジットだけを使う場合に委任なしでトークンを出す方法は、公式ドキュメントでは確認できなかった。したがって買い手（利用者）は次の手順を踏む。
 
 1. Nevermined App でカードを登録する
-2. 小さい上限で委任を作る
-3. Stripe Checkout でプランを購入する
-4. トークンを発行する
+2. Stripe Checkout でプランを購入する（`npm run plan:order`）
+3. 委任を作り、トークンを発行する（`npm run buyer:token`）。委任は通貨 usd・上限 100¢ で作り、有効なものがあれば再利用する（追加指示 v2 §1）
 
-指示書 §1 の「カードでプラン購入 → トークン」より手順が多い。§5「購入から利用開始までの時間」は、委任の作成からを含めて測る。委任の作成とトークンの発行の時刻は `scripts/buyer-token.ts` が `log/events.jsonl` に記録し、週次レポートに区間ごとに出る。
+指示書 §1 の「カードでプラン購入 → トークン」より手順が多い。週次レポートの「購入から利用開始までの時間」は、決済完了 → 委任作成 → トークン発行 → 最初の 200 の区間ごとに測る。委任の作成とトークンの発行の時刻は `scripts/buyer-token.ts` が `log/events.jsonl` に記録する（`delegation_created` または `delegation_reused`、`token_issued`）。
 
 ### SDK の資料と実装の差
 
@@ -153,4 +153,4 @@ SDK 1.13.0 では、どのスキームでもトークン発行に `delegationCon
 - [ ] 日本の Stripe アカウントで Stripe Connect が使えるか
 - [ ] sandbox の Stripe Checkout で使えるテストカード（Stripe 標準の `4242…` で動くか）
 - [ ] カード決済の領収書・請求書の形式（Stripe のレシートか、Nevermined の発行か）
-- [ ] エージェント登録の `endpoints` 許可リストで `:ticker` のようなパスパラメータが書けるか（現在は未登録）
+- [ ] エージェント登録の `endpoints` で `:ticker` のようなパスパラメータが受け付けられるか。登録できた形を確かめたら、この項目を外し、「使っている API」の表に書く

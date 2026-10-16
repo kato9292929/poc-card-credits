@@ -1,5 +1,5 @@
 /**
- * 週次集計（指示書 §5）を reports/YYYY-Www.md に出す。
+ * 週次集計（追加指示 v2 §5）を reports/YYYY-Www.md に出す。出せない項目は「未計測（理由）」と書く。
  *
  *   npm run report:weekly            # 先週（ISO週）
  *   npm run report:weekly -- 2026-W42
@@ -7,7 +7,7 @@
  * 入力:
  *   ゲートウェイのログ            GET $GATEWAY_URL/logs/:date（LOG_READ_TOKEN）。開発時は log/YYYY-MM-DD.jsonl
  *   log/buyer-YYYY-MM-DD.jsonl   買い手エージェント
- *   log/events.jsonl             プラン購入（checkout_created / credits_available）
+ *   log/events.jsonl             プラン購入（credits_available）、委任作成（delegation_created / delegation_reused）、トークン発行（token_issued）
  *   reports/inputs/card-payments.json  カード手数料（Stripe / Nevermined の管理画面から転記）
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -51,7 +51,7 @@ const buyer = buyerLog.days().filter((d) => days.includes(d)).flatMap((d) => buy
 const events = existsSync(`${logDir}/events.jsonl`)
   ? readFileSync(`${logDir}/events.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
   : [];
-const cardFile = 'reports/inputs/card-payments.json';
+const cardFile = process.env.CARD_PAYMENTS_FILE ?? 'reports/inputs/card-payments.json';
 const cards: any[] = existsSync(cardFile) ? JSON.parse(readFileSync(cardFile, 'utf8')).payments ?? [] : [];
 const plans = JSON.parse(readFileSync('config/plans.json', 'utf8')).plans as { name: string; priceUsd: string; credits: number }[];
 
@@ -59,111 +59,156 @@ const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, 0n);
 const usd = (m: bigint) => `$${microToUsd(m)}`;
 const pct = (a: bigint, b: bigint) => (b === 0n ? '-' : `${((Number(a) / Number(b)) * 100).toFixed(2)}%`);
 
-// --- リクエストと原価 ---
+// --- リクエスト ---
 const byOutcome = new Map<string, number>();
 for (const e of gw) byOutcome.set(e.outcome, (byOutcome.get(e.outcome) ?? 0) + 1);
 const ok = gw.filter((e) => e.outcome === 'ok');
 const creditsConsumed = ok.reduce((a, e) => a + (e.creditsConsumed ?? 0), 0);
-const paidTx = gw.filter((e) => e.upstreamTx);
-const upstreamCost = sum(gw.map((e) => BigInt(e.upstreamCostMicro ?? '0')));
-const chainFees = chainFeeMicroPerTx * BigInt(paidTx.length);
-const unrecovered = sum(gw.filter((e) => e.outcome === 'settle_failed').map((e) => BigInt(e.upstreamCostMicro ?? '0')));
 const failedButCharged = gw.filter((e) => e.outcome !== 'ok' && (e.creditsConsumed ?? 0) > 0);
+
+// --- 1コールあたりの原価：裏側の x402 支払い（upstreamTx があるもの）＋ チェーン手数料 ---
+const paid = gw.filter((e) => e.upstreamTx && e.upstreamTx !== 'none');
+const upstreamCost = sum(paid.map((e) => BigInt(e.upstreamCostMicro ?? '0')));
+const chainFees = chainFeeMicroPerTx * BigInt(paid.length);
+const unrecovered = sum(gw.filter((e) => e.outcome === 'settle_failed').map((e) => BigInt(e.upstreamCostMicro ?? '0')));
 
 // --- 売上（クレジット換算）とカード手数料 ---
 const prepaid = plans.find((p) => p.name === 'prepaid-100')!;
 const revenuePerCredit = usdToMicro(prepaid.priceUsd) / BigInt(prepaid.credits);
 const revenue = revenuePerCredit * BigInt(creditsConsumed);
 const weekCards = cards.filter((c) => inWeek(`${c.date}T00:00:00Z`));
-const allCards = cards;
-const gross = sum(allCards.map((c) => usdToMicro(c.grossUsd)));
-const fees = sum(allCards.map((c) => usdToMicro(c.stripeFeeUsd) + usdToMicro(c.neverminedFeeUsd)));
-const creditsBought = allCards.reduce((a, c) => a + Number(c.creditsPurchased ?? 0), 0);
-// 手数料はクレジット1単位あたりに按分（累計の購入額ベース）
+const gross = sum(cards.map((c) => usdToMicro(c.grossUsd)));
+const nvmFees = sum(cards.map((c) => usdToMicro(c.neverminedFeeUsd)));
+const stripeFees = sum(cards.map((c) => usdToMicro(c.stripeFeeUsd)));
+const fees = nvmFees + stripeFees;
+const creditsBought = cards.reduce((a, c) => a + Number(c.creditsPurchased ?? 0), 0);
+// 手数料はクレジット1単位あたりに按分（累計の購入ベース）
 const feePerCredit = creditsBought > 0 ? fees / BigInt(creditsBought) : 0n;
 const feeAlloc = feePerCredit * BigInt(creditsConsumed);
-const perCall = (m: bigint) => (ok.length ? usd(m / BigInt(ok.length)) : '-');
+const perCall = (m: bigint) => usd(m / BigInt(ok.length));
 const margin = revenue - upstreamCost - chainFees - feeAlloc;
+const topUps = gw.filter((e) => e.cardTopUpOrderTx);
 
-// --- 購入から利用開始まで ---
-// 実際の手順は「カード登録 → 委任作成 → プラン購入 → トークン発行 → 最初のリクエスト」（docs/nevermined.md）。
-// 委任作成とトークン発行の時刻は scripts/buyer-token.ts が events.jsonl に残す。
-const sec = (a?: string, b?: string) => (a && b ? `${Math.round((Date.parse(b) - Date.parse(a)) / 1000)} 秒` : '-');
+// --- 購入から利用開始まで：決済完了 → 委任作成 → トークン発行 → 最初の 200 ---
+// 決済完了 = order-plan のクレジット付与の確認（credits_available）。委任作成とトークン発行は buyer:token が残す
+const sec = (a?: string, b?: string) => {
+  if (!a || !b) return '-';
+  const s = Math.round((Date.parse(b) - Date.parse(a)) / 1000);
+  return s < 0 ? `${s} 秒（前後が逆）` : `${s} 秒`;
+};
 const ttfu = events
   .filter((e) => e.event === 'credits_available' && inWeek(e.ts))
-  .map((e) => {
-    const checkout = events.filter((c) => c.event === 'checkout_created' && c.stripeCheckoutSessionId === e.stripeCheckoutSessionId).at(-1);
-    const token = events.filter((t) => t.event === 'token_issued' && t.planId === e.planId && t.ts <= (ok.find((r) => r.time_utc >= e.ts)?.time_utc ?? '9999')).at(-1);
-    const first = ok.find((r) => r.time_utc >= e.ts && (!token || r.time_utc >= token.ts));
-    return { delegation: token?.delegationCreatedAt, checkout: checkout?.ts, available: e.ts, token: token?.ts, firstOk: first?.time_utc };
+  .map((paidEv) => {
+    const token = events.find((t) => t.event === 'token_issued' && t.ts >= paidEv.ts);
+    const delegation = token
+      ? events.filter((x) => (x.event === 'delegation_created' || x.event === 'delegation_reused') && x.ts <= token.ts).at(-1)
+      : undefined;
+    const first = token ? ok.find((r) => r.time_utc >= token.ts) : undefined;
+    return {
+      paid: paidEv.ts,
+      delegation: delegation?.delegationCreatedAt as string | undefined,
+      reused: delegation?.event === 'delegation_reused',
+      token: token?.ts as string | undefined,
+      firstOk: first?.time_utc as string | undefined,
+    };
   });
 
-// --- カード明細の件数（経理上の扱い）---
-// プラン購入（Checkout）1件 ＋ 自動補充（settle 時のカード請求）の件数。補充が起きると「$1 のプラン」が明細で複数件になる
-const topUps = gw.filter((e) => e.cardTopUpOrderTx);
-const checkoutsInWeek = events.filter((e) => e.event === 'credits_available' && inWeek(e.ts));
-
 // --- 残高切れ ---
+const status402 = gw.filter((e) => e.status === 402);
+const by402 = new Map<string, number>();
+for (const e of status402) by402.set(e.outcome, (by402.get(e.outcome) ?? 0) + 1);
 const exhausted = buyer.filter((e) => e.event === 'credits_exhausted');
 const resumed = buyer.filter((e) => e.event === 'resumed');
 const buyerCalls = buyer.filter((e) => e.event === 'call');
+
+const notMeasured = (reason: string) => `未計測（${reason}）`;
+const noCalls = ok.length === 0;
+const noCards = cards.length === 0;
 
 const md = `# 週次レポート ${week}
 
 期間: ${days[0]} 〜 ${days[6]}（JST）／ 生成: ${new Date().toISOString()}
 
-## リクエスト
+## 1. カード手数料
+
+${
+  noCards
+    ? notMeasured(`${cardFile} が未入力。Stripe の明細から転記する`)
+    : `| 日付 | 環境 | 売上 | Stripe 手数料 | Nevermined 手数料（2%） | 手数料率 | カード |
+|---|---|---|---|---|---|---|
+${cards.map((c) => `| ${c.date} | ${c.environment ?? ''} | $${c.grossUsd} | $${c.stripeFeeUsd} | $${c.neverminedFeeUsd} | ${pct(usdToMicro(c.stripeFeeUsd) + usdToMicro(c.neverminedFeeUsd), usdToMicro(c.grossUsd))} | ${[c.cardBrand, c.cardType].filter(Boolean).join(' ')} |`).join('\n')}
+
+- 累計: 売上 ${usd(gross)}、手数料 ${usd(fees)}（Stripe ${usd(stripeFees)} ＋ Nevermined ${usd(nvmFees)}）、売上に対する割合 ${pct(fees, gross)}
+- 今週の購入: ${weekCards.length} 件`
+}
+- settle 時のカードへの自動補充: ${topUps.length} 件${topUps.length ? '（プラン1件が明細の複数行になっている。BLOCK_CARD_TOPUP=false の週だけ起きうる）' : ''}
+
+## 2. 1コールあたりの原価
+
+${
+  noCalls
+    ? notMeasured('今週の成功コールが 0 件')
+    : `| 項目 | 合計 | 1コールあたり（成功 ${ok.length} 件） |
+|---|---|---|
+| 裏側の x402 支払い（upstreamTx のある ${paid.length} 件） | ${usd(upstreamCost)} | ${perCall(upstreamCost)} |
+| チェーン手数料（${usd(chainFeeMicroPerTx)}/tx） | ${usd(chainFees)} | ${perCall(chainFees)} |
+| **原価** | **${usd(upstreamCost + chainFees)}** | **${perCall(upstreamCost + chainFees)}** |
+| 参考：未回収原価（裏側は支払ったが消費できなかった） | ${usd(unrecovered)} | |
+
+チェーン手数料は、x402 の exact スキームではファシリテーターの負担になる想定で、既定は $0。実測で差があれば \`CHAIN_FEE_USD_PER_TX\` を設定して再集計する。`
+}
+
+## 3. 1コールあたりの粗利
+
+${
+  noCalls
+    ? notMeasured('今週の成功コールが 0 件')
+    : `| 項目 | 合計 | 1コールあたり |
+|---|---|---|
+| 売上（消費 ${creditsConsumed} クレジット × ${usd(revenuePerCredit)}） | ${usd(revenue)} | ${perCall(revenue)} |
+| − 原価 | ${usd(upstreamCost + chainFees)} | ${perCall(upstreamCost + chainFees)} |
+| − カード手数料の按分（${noCards ? '未計測：カード明細が未入力' : `${usd(feePerCredit)}/クレジット`}） | ${usd(feeAlloc)} | ${perCall(feeAlloc)} |
+| **粗利** | **${usd(margin)}** | **${perCall(margin)}** |${noCards ? '\n\nカード手数料が未入力のため、粗利は手数料を差し引く前の値。' : ''}`
+}
+
+## 4. 購入から利用開始までの時間
+
+${
+  ttfu.length === 0
+    ? notMeasured('今週の購入（credits_available）が無い。npm run plan:order の記録が要る')
+    : `| 決済完了 | 委任作成 | トークン発行 | 最初の 200 | 決済→委任 | 委任→トークン | トークン→最初の 200 |
+|---|---|---|---|---|---|---|
+${ttfu.map((t) => `| ${t.paid} | ${t.delegation ?? '-'}${t.reused ? '（再利用）' : ''} | ${t.token ?? '-'} | ${t.firstOk ?? '-'} | ${t.reused ? '再利用（決済前に作成済み）' : sec(t.paid, t.delegation)} | ${sec(t.delegation, t.token)} | ${sec(t.token, t.firstOk)} |`).join('\n')}
+
+決済完了は、Checkout 後にクレジットの付与を確認した時刻（order-plan が5秒おきに確認）。委任を再利用したときは、決済→委任の区間は測れない。`
+}
+
+## 5. 残高切れの挙動
+
+- 402 の回数: ${status402.length} 回${status402.length ? `（${[...by402.entries()].map(([k, v]) => `${k} ${v}`).join('、')}）` : ''}
+- 買い手の停止: ${exhausted.length === 0 ? 'なし' : exhausted.map((e) => `${e.ts}（HTTP ${e.status} ${e.errorKind ?? ''}${e.reason ? `: ${e.reason}` : ''} → ${e.action}）`).join('、')}
+- 買い手の再開: ${resumed.length === 0 ? 'なし' : resumed.map((e) => `${e.ts}（停止 ${e.stoppedForSec} 秒）`).join('、')}
+
+## 6. 経理上の扱い（人が記録する）
+
+| 項目 | 記入 |
+|---|---|
+| Stripe のレシートの形式（メール / PDF、発行者名） | |
+| 請求書（インボイス）の有無と形式 | |
+| カード明細の表記（1件にまとまったか） | |
+| 経理処理上の所見 | |
+
+## 参考：リクエストの内訳
 
 | 結果 | 件数 |
 |---|---|
 ${[...byOutcome.entries()].map(([k, v]) => `| ${k} | ${v} |`).join('\n') || '| (なし) | 0 |'}
 
-- 成功コール: ${ok.length} ／ 消費クレジット: ${creditsConsumed}
 - 買い手エージェントの呼び出し: ${buyerCalls.length}（うち 200: ${buyerCalls.filter((e) => e.status === 200).length}）
-- **失敗時に利用枠が消費されたリクエスト: ${failedButCharged.length} 件**（0 であること。§6 の移行条件）
+- **失敗時に利用枠が消費されたリクエスト: ${failedButCharged.length} 件**（0 であること。本番移行の条件）
 - 支払い上限で拒否したリクエスト: ${byOutcome.get('gateway_cap_exceeded') ?? 0} 件
-
-## 1コールあたりの原価・粗利
-
-| 項目 | 合計 | 1コールあたり |
-|---|---|---|
-| 売上（消費クレジット換算、1クレジット = ${usd(revenuePerCredit)}） | ${usd(revenue)} | ${perCall(revenue)} |
-| 裏側の x402 支払い | ${usd(upstreamCost)} | ${perCall(upstreamCost)} |
-| チェーン手数料（${usd(chainFeeMicroPerTx)}/tx × ${paidTx.length} tx） | ${usd(chainFees)} | ${perCall(chainFees)} |
-| カード手数料の按分（${usd(feePerCredit)}/クレジット） | ${usd(feeAlloc)} | ${perCall(feeAlloc)} |
-| **粗利** | **${usd(margin)}** | **${perCall(margin)}** |
-| 未回収原価（裏側は支払ったが消費できなかった） | ${usd(unrecovered)} | |
-
-チェーン手数料: x402 の exact スキームではガスはファシリテーター負担で、ゲートウェイのウォレットからは差し引かれない想定。実測で差がある場合は \`CHAIN_FEE_USD_PER_TX\` を設定して再集計する。
-
-## カード手数料（累計、${cardFile}）
-
-| 日付 | 環境 | 売上 | Stripe | Nevermined | 手数料率 | カード | 明細表記 | 領収書の形式 |
-|---|---|---|---|---|---|---|---|---|
-${allCards.map((c) => `| ${c.date} | ${c.environment ?? ''} | $${c.grossUsd} | $${c.stripeFeeUsd} | $${c.neverminedFeeUsd} | ${pct(usdToMicro(c.stripeFeeUsd) + usdToMicro(c.neverminedFeeUsd), usdToMicro(c.grossUsd))} | ${c.cardBrand ?? ''} ${c.cardType ?? ''} | ${c.statementDescriptor ?? ''} | ${c.receiptFormat ?? ''} |`).join('\n') || '| (未入力) | | | | | | | | |'}
-
-- 累計: 売上 ${usd(gross)}、手数料 ${usd(fees)}（${pct(fees, gross)}）。今週の購入: ${weekCards.length} 件
-
-## 購入から利用開始までの時間
-
-| 委任作成 | Checkout 作成 | クレジット付与 | トークン発行 | 最初の成功 | 委任→付与 | 決済→付与 | 付与→初回利用 |
-|---|---|---|---|---|---|---|---|
-${ttfu.map((t) => `| ${t.delegation ?? '-'} | ${t.checkout ?? '-'} | ${t.available} | ${t.token ?? '-'} | ${t.firstOk ?? '-'} | ${sec(t.delegation, t.available)} | ${sec(t.checkout, t.available)} | ${sec(t.available, t.firstOk)} |`).join('\n') || '| (今週の購入なし) | | | | | | | |'}
-
-「決済→付与」は Checkout URL の発行から数えるので、カード情報の入力時間を含む。委任を購入の前に作った場合、「委任→付与」はカード登録後の手順全体にかかった時間になる。
-
-## 残高切れの挙動
-
-${exhausted.length === 0 ? '今週の残高切れ: なし' : exhausted.map((e) => `- ${e.ts}: HTTP ${e.status} ${e.errorKind ?? ''} ${e.reason ? `(${e.reason})` : ''} → ${e.action}`).join('\n')}
-${resumed.map((e) => `- ${e.ts}: 再開（停止時間 ${e.stoppedForSec} 秒）`).join('\n')}
-
-## 経理上の扱い
-
-- 今週のカード請求: プラン購入 ${checkoutsInWeek.length} 件 ＋ 自動補充 ${topUps.length} 件${topUps.length ? '（**自動補充があったため、プラン1件が明細の複数行になっている**）' : ''}
-- 明細の表記・領収書の形式は上のカード手数料表を参照（${cardFile} に転記）
-- カード明細1件として処理できたか、経理担当の所見をここに追記する
 `;
 
-const out = `reports/${week}.md`;
+const out = `${process.env.REPORT_DIR ?? 'reports'}/${week}.md`;
 writeFileSync(out, md);
 console.log(`wrote ${out}`);

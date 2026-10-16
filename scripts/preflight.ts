@@ -1,9 +1,10 @@
 /**
- * 起動前チェック（追加指示 §3）。コマンドごとに、必要な環境変数が .env に揃っているかを一覧で出す。
+ * 起動前チェック（追加指示 v2 §3）。必要な環境変数が .env に揃っているかを一覧で出す。
  * 値そのものは表示しない（設定済みかどうかと、形式の確認結果だけ）。
  *
- *   npm run preflight            # 全コマンド
- *   npm run preflight -- gateway # 1つだけ
+ *   npm run preflight              # §3 の一覧（Sandbox での確認 §4 に進む条件）。通れば終了コード 0
+ *   npm run preflight -- --all     # コマンドごとの一覧すべて
+ *   npm run preflight -- gateway   # 1つのコマンドだけ
  */
 import 'dotenv/config';
 import { getEnvironmentFromApiKey } from '@nevermined-io/payments';
@@ -19,23 +20,39 @@ const SELLER: Check = { name: 'NVM_API_KEY_SELLER', why: '売り手の Nevermine
 const BUYER: Check = { name: 'NVM_API_KEY_BUYER', why: '買い手の Nevermined API キー（sandbox:）', validate: nvmKey('買い手') };
 const AGENT: Check = { name: 'NVM_AGENT_ID', why: 'エージェント登録後の ID（npm run plan:register -- --plan-id）' };
 const PLAN: Check = { name: 'NVM_PLAN_ID', why: 'App で作った prepaid-100 のプラン ID' };
+const WALLET: Check = {
+  name: 'GATEWAY_WALLET_SECRET',
+  why: 'npm run wallet:new で作った Solana の秘密鍵（devnet USDC 入金済み）',
+  validate: (v) => (/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(v) ? undefined : 'base58 の 64 バイト秘密鍵に見えない'),
+};
+const BLOB: Check = { name: 'BLOB_READ_WRITE_TOKEN', why: 'Vercel Blob のストアの読み書きトークン（ログの保存先）' };
+const SALT: Check = { name: 'LOG_SALT', why: 'ログのトークン ID 匿名化の塩（任意のランダム文字列）' };
+const PUBLIC_URL: Check = { name: 'PUBLIC_BASE_URL', why: 'ゲートウェイの公開 URL（エージェント登録・payg 試験で使う）', validate: url };
+const JIN: Check = { name: 'UPSTREAM_JIN_URL', why: 'JIN のテスト用 URL', validate: url };
+const OSD: Check = { name: 'UPSTREAM_OSD_URL', why: 'OSD のテスト用 URL', validate: url };
+const DELEGATION_LIMIT: Check = {
+  name: 'BUYER_DELEGATION_LIMIT_CENTS',
+  why: '委任の上限（セント）。既定 100 で、下げることだけできる（50 以上）',
+  optional: true,
+  validate: (v) => (/^\d+$/.test(v) && Number(v) >= 50 && Number(v) <= 100 ? undefined : '50〜100 の整数ではない'),
+};
 
 export const COMMANDS: Record<string, { what: string; checks: Check[] }> = {
+  sandbox: {
+    what: '追加指示 v2 §3 の一覧（揃えば §4 の Sandbox での確認に進む）',
+    checks: [SELLER, BUYER, PLAN, AGENT, BLOB, JIN, OSD, WALLET, SALT, PUBLIC_URL],
+  },
   gateway: {
     what: 'npm run gateway',
     checks: [
       SELLER,
       PLAN,
       AGENT,
-      { name: 'UPSTREAM_JIN_URL', why: 'JIN のテスト用 URL', validate: url },
-      { name: 'UPSTREAM_OSD_URL', why: 'OSD のテスト用 URL', validate: url },
-      {
-        name: 'GATEWAY_WALLET_SECRET',
-        why: 'npm run wallet:new で作った Solana の秘密鍵（devnet USDC 入金済み）',
-        validate: (v) => (/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(v) ? undefined : 'base58 の 64 バイト秘密鍵に見えない'),
-      },
-      { name: 'BLOB_READ_WRITE_TOKEN', why: 'Vercel Blob のストアの読み書きトークン（ログの保存先）' },
-      { name: 'LOG_SALT', why: 'ログのトークン ID 匿名化の塩（任意のランダム文字列）' },
+      JIN,
+      OSD,
+      WALLET,
+      BLOB,
+      SALT,
       { name: 'PUBLIC_BASE_URL', why: '買い手から見たゲートウェイの URL（未設定なら http://localhost:PORT）', optional: true, validate: url },
       {
         name: 'LOG_READ_TOKEN',
@@ -47,12 +64,12 @@ export const COMMANDS: Record<string, { what: string; checks: Check[] }> = {
   },
   'plan:register': {
     what: 'npm run plan:register -- --plan-id <ID>（プランは App で作る）',
-    checks: [SELLER, { name: 'PUBLIC_BASE_URL', why: 'エージェント登録に載せるゲートウェイの URL', validate: url }],
+    checks: [SELLER, PUBLIC_URL],
   },
   'plan:order': { what: 'npm run plan:order', checks: [BUYER, PLAN] },
   'buyer:token': {
     what: 'npm run buyer:token',
-    checks: [BUYER, PLAN, AGENT, { name: 'NVM_DELEGATION_ID', why: '買い手の委任 ID（App で作成、上限 100¢）' }],
+    checks: [BUYER, PLAN, AGENT, DELEGATION_LIMIT],
   },
   buyer: {
     what: 'npm run buyer',
@@ -80,7 +97,8 @@ export const COMMANDS: Record<string, { what: string; checks: Check[] }> = {
   },
 };
 
-const only = process.argv[2];
+const arg = process.argv[2];
+const only = arg === '--all' ? undefined : arg ?? 'sandbox';
 let missing = 0;
 console.log(`NVM_ENVIRONMENT=${env}${env !== 'sandbox' ? '（Sandbox 以外。ALLOW_LIVE を設定しないこと）' : ''}\n`);
 for (const [key, cmd] of Object.entries(COMMANDS)) {

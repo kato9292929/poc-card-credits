@@ -10,20 +10,58 @@
  *   そこで、有効期限のあるプランは SDK では登録せず、Nevermined App で作る（追加指示 §1）。
  *
  *   npm run plan:register                       # プランを App で作る手順を表示して終わる（登録はしない）
- *   npm run plan:register -- --plan-id <ID>     # App で作ったプランの中身を確かめ、エージェントを登録して紐づける
+ *   npm run plan:register -- --plan-id <ID>     # App で作ったプランの中身を確かめ、エージェントを endpoints 付きで登録して紐づける
+ *
+ * endpoints（追加指示 v2 §2）: JIN は /jin/series・/jin/movers、OSD は /osd/catalysts/:ticker を
+ * パターンのまま試す。拒否されたら BUYER_OSD_PATH（カンマ区切り可）の実パスを列挙して登録し直す。
+ * どちらで登録できたかを log/events.jsonl（agent_registered）と標準出力に出す。
+ *   npm run plan:register -- --try-sdk-expiry   # App で作れなかったときだけ。registerPlan に durationSecs=30日を渡して1回試す（Sandbox のみ）
  *   npm run plan:register -- --plan-id <ID> --confirm  # 中身を自動で確かめきれないとき（目視確認後）
  */
 import 'dotenv/config';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { Payments } from '@nevermined-io/payments';
 import { nvmEnvironment, required } from '../src/config.ts';
 import { usdToMicro } from '../src/money.ts';
+import { agentEndpoints, loadPricing } from '../src/pricing.ts';
 
 const plan = (JSON.parse(readFileSync('config/plans.json', 'utf8')) as { plans: any[] }).plans.find((p) => p.name === 'prepaid-100');
 if (!plan) throw new Error('prepaid-100 not found in config/plans.json');
 
 const argIdx = process.argv.indexOf('--plan-id');
 const planId = argIdx > 0 ? process.argv[argIdx + 1] : undefined;
+
+// 追加指示 v2 §4-1 の分岐：App で「クレジット制＋有効期限」が作れなかったときだけ使う。
+// registerPlan に durationSecs = 30 日を直接渡して、Sandbox で1回だけ登録を試す（文書に無い使い方）。
+// 結果（受け付けられたプラン ID、または拒否のエラー）を log/events.jsonl に残す。
+if (process.argv.includes('--try-sdk-expiry')) {
+  const apiKey = required('NVM_API_KEY_SELLER');
+  const environment = nvmEnvironment(apiKey);
+  if (environment !== 'sandbox') throw new Error('--try-sdk-expiry is sandbox-only');
+  const payments = Payments.getInstance({ nvmApiKey: apiKey, environment });
+  const logDir = process.env.LOG_DIR ?? 'log';
+  mkdirSync(logDir, { recursive: true });
+  const durationSecs = BigInt(plan.durationDays) * 86_400n;
+  const record = (e: object) =>
+    appendFileSync(`${logDir}/events.jsonl`, JSON.stringify({ ts: new Date().toISOString(), environment, event: 'sdk_expiry_attempt', durationSecs: String(durationSecs), ...e }) + '\n');
+  try {
+    const r = await payments.plans.registerPlan(
+      { name: plan.name, description: plan.description, accessLimit: 'credits' },
+      payments.plans.getFiatPriceConfig(usdToMicro(plan.priceUsd), required('NVM_RECEIVER_ADDRESS') as `0x${string}`),
+      { ...payments.plans.getFixedCreditsConfig(BigInt(plan.credits), 1n), durationSecs },
+      undefined,
+      'credits',
+    );
+    record({ accepted: true, planId: r.planId });
+    console.log(`受け付けられた: NVM_PLAN_ID=${r.planId}\n次に npm run plan:register -- --plan-id ${r.planId} で中身を照合する。`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    record({ accepted: false, error: msg });
+    console.error(`拒否された: ${msg}\n→ 期限なしのクレジット制 100 回で App に作り、この事実とエラー内容を docs/nevermined.md に記録する。`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
 
 if (!planId) {
   console.log(`SDK 1.13.0 ではクレジット制のプランに有効期限を指定できないため、プランは Nevermined App（Sandbox）で作る。
@@ -82,18 +120,44 @@ if (mismatch || (unknown && !process.argv.includes('--confirm'))) {
   process.exit(1);
 }
 
-const { agentId } = await payments.agents.registerAgent(
-  {
-    name: 'OSD / JIN card-credits gateway (PoC)',
-    description: 'カード払いで購入したクレジットで OSD / JIN の x402 エンドポイントを1コールずつ利用するゲートウェイ',
-    tags: ['poc', 'x402', 'osd', 'jin'],
-  },
-  {
-    // endpoints（Nevermined 側の追加の URL 許可リスト）は登録しない（判断待ち。:ticker のような
-    // パスパラメータを書けるかが未確認）。ゲートウェイ側でルートを限定している。
-    agentDefinitionUrl: `${publicBaseUrl}/healthz`,
-  },
-  [planId],
-);
+// endpoints（追加指示 v2 §2）：ゲートウェイの公開パスを Nevermined の URL 許可リストに登録する。
+// まず OSD を :ticker 付きのパターンで試し、拒否されたら買い手エージェントが呼ぶ実パスを列挙して登録し直す。
+const base = publicBaseUrl.replace(/\/$/, '');
+const buyerPaths = (process.env.BUYER_OSD_PATH ?? '/osd/catalysts/AAPL').split(',').map((x) => x.trim()).filter(Boolean);
+const { pattern: patternEndpoints, expanded: expandedEndpoints } = agentEndpoints(loadPricing(), base, buyerPaths);
 
-console.log(JSON.stringify({ environment, NVM_AGENT_ID: agentId, NVM_PLAN_ID: planId }, null, 2));
+const agentMetadata = {
+  name: 'OSD / JIN card-credits gateway (PoC)',
+  description: 'カード払いで購入したクレジットで OSD / JIN の x402 エンドポイントを1コールずつ利用するゲートウェイ',
+  tags: ['poc', 'x402', 'osd', 'jin'],
+};
+const register = (endpoints: Record<string, string>[]) =>
+  payments.agents.registerAgent(agentMetadata, { endpoints, agentDefinitionUrl: `${base}/healthz` }, [planId]);
+const show = (e: unknown) => (e instanceof Error ? `${(e as any).code ? `${(e as any).code}: ` : ''}${e.message}` : String(e));
+
+const logDir = process.env.LOG_DIR ?? 'log';
+mkdirSync(logDir, { recursive: true });
+const event = (e: object) => appendFileSync(`${logDir}/events.jsonl`, JSON.stringify({ ts: new Date().toISOString(), environment, planId, ...e }) + '\n');
+
+let agentId: string;
+let form: 'pattern' | 'expanded';
+let patternError: string | undefined;
+try {
+  ({ agentId } = await register(patternEndpoints));
+  form = 'pattern';
+} catch (e) {
+  patternError = show(e);
+  console.error(`パターン（:ticker）付きの endpoints は拒否された: ${patternError}`);
+  console.error(`実パスを列挙して登録し直す: ${expandedEndpoints.map((x) => Object.values(x)[0]).join(', ')}`);
+  try {
+    ({ agentId } = await register(expandedEndpoints));
+    form = 'expanded';
+  } catch (e2) {
+    event({ event: 'agent_register_failed', patternError, expandedError: show(e2) });
+    throw e2;
+  }
+}
+const endpoints = form === 'pattern' ? patternEndpoints : expandedEndpoints;
+event({ event: 'agent_registered', agentId, endpointsForm: form, endpoints, patternError });
+console.log(JSON.stringify({ environment, NVM_AGENT_ID: agentId, NVM_PLAN_ID: planId, endpointsForm: form, endpoints, patternError }, null, 2));
+console.log(`\ndocs/nevermined.md の「使っている API」に、endpoints を ${form === 'pattern' ? ':ticker 付きのパターン' : '実パスの列挙'} で登録できたことを書く。`);

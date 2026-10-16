@@ -16,7 +16,9 @@ class FakeLedger implements CreditLedger {
   paymentRequired() {
     return { x402Version: 2, accepts: [] };
   }
-  async verify() {
+  endpoints: string[] = [];
+  async verify(a: { endpoint: string }) {
+    this.endpoints.push(a.endpoint);
     return this.verifyOk ? ({ ok: true, payer: '0xabc' } as const) : ({ ok: false, reason: 'Insufficient balance' } as const);
   }
   async balance() {
@@ -184,4 +186,21 @@ test('every log line has the required fields, including requests rejected early'
       [false, 'valid', 'ok', 'sig123'],
     ],
   );
+});
+
+test('the endpoint sent to Nevermined is the actual requested URL (ticker expanded)', async () => {
+  const { handle, ledger } = setup();
+  await handle(req('/osd/catalysts/AAPL'));
+  assert.deepEqual(ledger.endpoints, ['https://gw.example/osd/catalysts/AAPL']);
+});
+
+test('per-call cap lowered to $0.001: the request is refused before signing and nothing is settled', async () => {
+  const guard = new SpendGuard(usdToMicro('0.001'), usdToMicro('5'));
+  const { handle, ledger, logs } = setup(ok, guard);
+  const res = await handle(req('/jin/series'));
+  assert.equal(res.status, 503);
+  assert.deepEqual(ledger.settled, []);
+  assert.equal(logs[0].outcome, 'gateway_cap_exceeded');
+  assert.equal(logs[0].upstreamTx, 'none');
+  assert.equal(guard.snapshot().spent, 0n);
 });

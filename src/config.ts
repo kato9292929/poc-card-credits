@@ -9,6 +9,25 @@ import { usdToMicro, type MicroUsd } from './money.ts';
 export const HARD_MAX_PER_CALL: MicroUsd = usdToMicro('0.05');
 export const HARD_MAX_PER_DAY: MicroUsd = usdToMicro('5');
 
+/**
+ * 買い手の委任の上限（セント、追加指示 v2 §1）。コードに固定し、環境変数 BUYER_DELEGATION_LIMIT_CENTS では
+ * 下げることしかできない。Nevermined の委任の最低額は $0.50（Card Delegation のページ）。
+ */
+export const HARD_MAX_DELEGATION_CENTS = 100;
+export const MIN_DELEGATION_CENTS = 50;
+
+export function delegationLimitCents(): number {
+  const raw = process.env.BUYER_DELEGATION_LIMIT_CENTS;
+  if (!raw) return HARD_MAX_DELEGATION_CENTS;
+  const v = Number(raw);
+  if (!Number.isInteger(v)) throw new Error(`BUYER_DELEGATION_LIMIT_CENTS must be an integer, got ${raw}`);
+  if (v > HARD_MAX_DELEGATION_CENTS) {
+    throw new Error(`BUYER_DELEGATION_LIMIT_CENTS=${v} exceeds the hard cap ${HARD_MAX_DELEGATION_CENTS} compiled into src/config.ts`);
+  }
+  if (v < MIN_DELEGATION_CENTS) throw new Error(`BUYER_DELEGATION_LIMIT_CENTS=${v} is below Nevermined's minimum ${MIN_DELEGATION_CENTS}`);
+  return v;
+}
+
 function lowerOnly(envName: string, hard: MicroUsd): MicroUsd {
   const raw = process.env[envName];
   if (!raw) return hard;
