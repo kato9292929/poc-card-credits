@@ -11,9 +11,10 @@ export interface LogStore {
   days(): Promise<string[]>;
 }
 
-export const logPath = (day: string) => {
+/** prefix は 'log/'（ゲートウェイ）または 'log/buyer/'（買い手エージェント） */
+export const logPath = (day: string, prefix = 'log/') => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error(`invalid log day ${day}`);
-  return `log/${day}.jsonl`;
+  return `${prefix}${day}.jsonl`;
 };
 
 export function parseLines(text: string | null): any[] {

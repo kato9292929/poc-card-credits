@@ -48,27 +48,56 @@ payg（都度払い）は本番の比較対象から外した（Stripe の USD �
 | `reports/` | 週次レポート `YYYY-Www.md`（§5） |
 | `docs/go-live.md` | 本番に移す条件（§6） |
 
+## デプロイ（Vercel）
+
+ゲートウェイと買い手エージェントは Vercel に置く（追加指示 v3 の判断）。
+
+| 項目 | 内容 |
+|---|---|
+| ゲートウェイ | Express のゼロ設定デプロイ（`src/index.ts` の default export）。1つの関数として動く。`PUBLIC_BASE_URL` は Vercel のプロダクションの URL |
+| 買い手エージェント | Vercel Cron が `GET /cron/buyer`（`Authorization: Bearer $CRON_SECRET`）を1日20回呼ぶ。1回で1コール、JIN と OSD を交互に呼ぶ |
+| クーロンの登録 | Hobby プランは「1件1日1回」までなので、時刻をずらした20件を `vercel.json` に登録している（UTC 0〜19 時の 7 分＝JST 9:07〜翌 4:07。Hobby では最大 ±59 分ずれる） |
+| 買い手のトークン | 各回に買い手のキーで発行する。委任は有効なものを再利用する |
+| 買い手のログ | Blob の `log/buyer/YYYY-MM-DD.jsonl` |
+| 残高切れ | 停止状態を Blob の `state/buyer.json` に書いて止まる。再開は `npm run buyer:resume` |
+| 日次上限 | 支払いの直前に当日のログを読み直して、ほかのインスタンスの支払いも数える |
+| ログが読めないとき | 起動時に当日のログを読めない場合は、支払いを受け付けない |
+| 設定が足りないとき | 関数は落ちずに、`/healthz` が 503 で足りない環境変数の名前だけを返す（値は返さない） |
+
+秘密でない設定値は `config/sandbox.json`（コミットする）に置く。
+
+- `NVM_PLAN_ID`
+- `NVM_AGENT_ID`
+- `PUBLIC_BASE_URL`
+- `UPSTREAM_JIN_URL` / `UPSTREAM_OSD_URL`
+
+環境変数が設定されていれば、そちらが優先される。`plan:register -- --plan-id` は `NVM_PLAN_ID` と `NVM_AGENT_ID` をここに書き込む。
+
+秘密は、次の2か所に置く。リポジトリにもチャットにも出さない。
+
+| 置き場所 | 変数 |
+|---|---|
+| Vercel のプロジェクトの環境変数 | `NVM_API_KEY_SELLER`、`NVM_API_KEY_BUYER`、`BLOB_READ_WRITE_TOKEN`（Blob ストアをプロジェクトにつなぐと自動で入る）、`GATEWAY_WALLET_SECRET`、`LOG_SALT`、`LOG_READ_TOKEN`、`CRON_SECRET` |
+| このリポジトリで作業する Claude Code の環境変数 | `NVM_API_KEY_SELLER`、`NVM_API_KEY_BUYER`、`BLOB_READ_WRITE_TOKEN`、`LOG_READ_TOKEN`、`CRON_SECRET`（ウォレットの秘密鍵と `LOG_SALT` は置かない） |
+
+ローカルでの確認では `npx vercel build` が通り、出力した関数が単体で起動することを確かめた。確かめた内容は次の3つ。
+
+- `/healthz` が 200 を返す
+- `/cron/buyer` は認証が無いと 401
+- `/jin/series` は `nvm:card-delegation` の 402
+
 ## 起動前チェック（追加指示 v2 §3）
 
-`npm run preflight` は、追加指示 v2 §3 の一覧が揃っているかを確かめる。値は表示しない。通れば終了コード 0 で、Sandbox での確認（§4）に進んでよい。
+`npm run preflight` は、Sandbox での確認に進む条件を確かめる。値は表示しない。通れば終了コード 0。確かめるのは次の2つ。
+
+1. このセッションの環境変数と `config/sandbox.json`
+2. デプロイ先の `/healthz`。Vercel 側に足りない環境変数があれば、その名前が出る
 
 | 用途 | コマンド |
 |---|---|
 | コマンドごとの一覧すべて | `npm run preflight -- --all` |
 | 1つのコマンドだけ | `npm run preflight -- gateway` など |
 
-§3 の一覧は次の10個。
-
-- `NVM_API_KEY_SELLER`
-- `NVM_API_KEY_BUYER`
-- `NVM_PLAN_ID`
-- `NVM_AGENT_ID`
-- `BLOB_READ_WRITE_TOKEN`
-- `UPSTREAM_JIN_URL`
-- `UPSTREAM_OSD_URL`
-- `GATEWAY_WALLET_SECRET`
-- `LOG_SALT`
-- `PUBLIC_BASE_URL`
 
 コマンドごとに要求するものは次のとおり。
 

@@ -2,11 +2,15 @@
  * 起動前チェック（追加指示 v2 §3）。必要な環境変数が .env に揃っているかを一覧で出す。
  * 値そのものは表示しない（設定済みかどうかと、形式の確認結果だけ）。
  *
- *   npm run preflight              # §3 の一覧（Sandbox での確認 §4 に進む条件）。通れば終了コード 0
+ *   npm run preflight              # Sandbox での確認に進む条件（追加指示 v3 §2-3）。通れば終了コード 0
+ *                                  #  ① このセッションの環境変数と config/sandbox.json
+ *                                  #  ② デプロイ先（Vercel）の /healthz：ゲートウェイが設定済みで動いているか
+ *                                  #     （GATEWAY_WALLET_SECRET と LOG_SALT は Vercel にだけ置くので、ここで確かめる）
  *   npm run preflight -- --all     # コマンドごとの一覧すべて
  *   npm run preflight -- gateway   # 1つのコマンドだけ
  */
 import 'dotenv/config';
+import '../src/settings.ts';
 import { getEnvironmentFromApiKey } from '@nevermined-io/payments';
 
 type Check = { name: string; why: string; optional?: boolean; validate?: (v: string) => string | undefined };
@@ -39,8 +43,19 @@ const DELEGATION_LIMIT: Check = {
 
 export const COMMANDS: Record<string, { what: string; checks: Check[] }> = {
   sandbox: {
-    what: '追加指示 v2 §3 の一覧（揃えば §4 の Sandbox での確認に進む）',
-    checks: [SELLER, BUYER, PLAN, AGENT, BLOB, JIN, OSD, WALLET, SALT, PUBLIC_URL],
+    what: '① このセッション（Claude Code の環境変数と config/sandbox.json）',
+    checks: [
+      SELLER,
+      BUYER,
+      PLAN,
+      AGENT,
+      { ...BLOB, why: 'Vercel Blob の読み書きトークン（buyer:resume で使う）' },
+      { name: 'LOG_READ_TOKEN', why: 'GET /logs/:date の Bearer（Sandbox での確認と週次レポートで使う）', validate: (v) => (v.length >= 32 ? undefined : '32 文字未満') },
+      { name: 'CRON_SECRET', why: 'Vercel Cron の Bearer（買い手の1回分を手動で起動するときに使う）', validate: (v) => (v.length >= 16 ? undefined : '16 文字未満') },
+      JIN,
+      OSD,
+      PUBLIC_URL,
+    ],
   },
   gateway: {
     what: 'npm run gateway',
@@ -113,6 +128,36 @@ for (const [key, cmd] of Object.entries(COMMANDS)) {
   }
   console.log('');
 }
+// ② デプロイ先の /healthz
+if (only === 'sandbox' || only === undefined) {
+  const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '');
+  console.log('■ ② デプロイ先（Vercel）の /healthz');
+  if (!base) {
+    console.log('  ✗ PUBLIC_BASE_URL が無いので確かめられない\n');
+    missing++;
+  } else {
+    try {
+      const r = await fetch(`${base}/healthz`, { signal: AbortSignal.timeout(15_000) });
+      const j: any = await r.json().catch(() => ({}));
+      const lack = [...(j?.missing?.gateway ?? []), ...(j?.missing?.buyerCron ?? []), ...(j?.missing?.logRead ?? [])];
+      if (r.status === 200 && j?.ok && lack.length === 0) {
+        console.log(`  ✓ 設定済みで動いている（環境 ${j.nvmEnvironment}、ログ ${j.logSink}、ウォレット ${j.gatewayWallet?.svm ?? j.gatewayWallet?.evm ?? '-'}）`);
+        if (j.nvmEnvironment !== 'sandbox') {
+          console.log('  ✗ Sandbox ではない');
+          missing++;
+        }
+      } else {
+        console.log(`  ✗ HTTP ${r.status}${j?.reason ? `：${j.reason}` : ''}${lack.length ? `。Vercel に足りない環境変数: ${lack.join(', ')}` : ''}`);
+        missing++;
+      }
+    } catch (e) {
+      console.log(`  ✗ ${base}/healthz に届かない（${(e as Error).message}）`);
+      missing++;
+    }
+    console.log('');
+  }
+}
+
 if (process.env.ALLOW_LIVE === 'true') {
   console.log('✗ ALLOW_LIVE=true が設定されている（追加指示で禁止）');
   missing++;

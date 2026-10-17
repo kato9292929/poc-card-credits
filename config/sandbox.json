@@ -1,0 +1,11 @@
+{
+  "$comment": "秘密ではない設定値（コミットする）。環境変数が設定されていれば、そちらが優先される。秘密鍵・API キー・トークンはここに書かない。",
+  "NVM_ENVIRONMENT": "sandbox",
+  "NVM_PLAN_ID": "",
+  "NVM_AGENT_ID": "",
+  "PUBLIC_BASE_URL": "",
+  "UPSTREAM_JIN_URL": "",
+  "UPSTREAM_OSD_URL": "",
+  "MAX_USD_PER_CALL": "",
+  "MAX_USD_PER_DAY": ""
+}

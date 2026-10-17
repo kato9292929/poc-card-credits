@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './settings.ts';
 import { getEnvironmentFromApiKey } from '@nevermined-io/payments';
 import { usdToMicro, type MicroUsd } from './money.ts';
 

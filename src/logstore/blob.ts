@@ -21,14 +21,18 @@ export interface BlobApi {
 export class VercelBlobLogStore implements LogStore {
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(private readonly opts: { token: string; maxRetries?: number; api?: BlobApi }) {}
+  constructor(private readonly opts: { token: string; maxRetries?: number; api?: BlobApi; prefix?: string }) {}
+
+  private get prefix(): string {
+    return this.opts.prefix ?? 'log/';
+  }
 
   private get api(): BlobApi {
     return this.opts.api ?? { get, put, list };
   }
 
   private async load(day: string): Promise<{ text: string; etag?: string } | null> {
-    const r = await this.api.get(logPath(day), { access: 'private', useCache: false, token: this.opts.token });
+    const r = await this.api.get(logPath(day, this.prefix), { access: 'private', useCache: false, token: this.opts.token });
     if (!r || r.statusCode !== 200) return null;
     return { text: await new Response(r.stream).text(), etag: r.blob.etag };
   }
@@ -48,12 +52,12 @@ export class VercelBlobLogStore implements LogStore {
     for (let attempt = 0; ; attempt++) {
       if (line.includes('\n')) throw new Error('a log line must not contain a newline');
       const cur = await this.load(day);
-      const prefix = cur?.text ?? '';
-      const body = prefix + line + '\n';
+      const existing = cur?.text ?? '';
+      const body = existing + line + '\n';
       // 追記のみ：既存の内容が先頭にそのまま残ることを確かめてから書く
-      if (!body.startsWith(prefix) || body.length <= prefix.length) throw new Error('append-only invariant violated');
+      if (!body.startsWith(existing) || body.length <= existing.length) throw new Error('append-only invariant violated');
       try {
-        await this.api.put(logPath(day), body, {
+        await this.api.put(logPath(day, this.prefix), body, {
           access: 'private',
           token: this.opts.token,
           contentType: 'application/x-ndjson',
@@ -74,9 +78,9 @@ export class VercelBlobLogStore implements LogStore {
     const out: string[] = [];
     let cursor: string | undefined;
     do {
-      const r = await this.api.list({ prefix: 'log/', cursor, token: this.opts.token });
+      const r = await this.api.list({ prefix: this.prefix, cursor, token: this.opts.token });
       for (const b of r.blobs) {
-        const m = /^log\/(\d{4}-\d{2}-\d{2})\.jsonl$/.exec(b.pathname);
+        const m = /^(\d{4}-\d{2}-\d{2})\.jsonl$/.exec(b.pathname.slice(this.prefix.length));
         if (m) out.push(m[1]);
       }
       cursor = r.hasMore ? r.cursor : undefined;

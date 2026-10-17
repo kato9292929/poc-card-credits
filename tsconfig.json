@@ -8,8 +8,15 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "noEmit": true,
-    "allowImportingTsExtensions": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "rewriteRelativeImportExtensions": true
   },
-  "include": ["src", "agents", "scripts", "test"]
+  "include": [
+    "src",
+    "agents",
+    "scripts",
+    "test"
+  ]
 }

@@ -11,6 +11,9 @@ export class GatewayLogWriter {
   private pending = new Set<Promise<void>>();
   failures = 0;
 
+  /** 書き込み中の Promise を渡す先（Vercel では waitUntil。応答後も書き込みを最後まで続けさせる） */
+  onPending?: (p: Promise<void>) => void;
+
   constructor(
     private readonly store: LogStore,
     private readonly onError: (e: unknown, line: string) => void = (e, line) =>
@@ -35,6 +38,7 @@ export class GatewayLogWriter {
       })
       .finally(() => this.pending.delete(p));
     this.pending.add(p);
+    this.onPending?.(p);
   }
 
   async flush(): Promise<void> {

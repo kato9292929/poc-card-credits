@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import assetsJson from '../../config/assets.json' with { type: 'json' };
 
 export interface AllowedAsset {
   network: string;
@@ -8,8 +9,8 @@ export interface AllowedAsset {
   testnet: boolean;
 }
 
-export function loadAssets(file = 'config/assets.json'): AllowedAsset[] {
-  return (JSON.parse(readFileSync(file, 'utf8')) as { assets: AllowedAsset[] }).assets;
+export function loadAssets(file?: string): AllowedAsset[] {
+  return ((file ? JSON.parse(readFileSync(file, 'utf8')) : assetsJson) as { assets: AllowedAsset[] }).assets;
 }
 
 export function findAsset(list: AllowedAsset[], network: string, asset: string): AllowedAsset | undefined {

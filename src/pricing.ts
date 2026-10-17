@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+// 静的 import にして、Vercel の関数に設定ファイルが含まれるようにする（実行時の readFileSync だけでは含まれない）
+import pricingJson from '../config/pricing.json' with { type: 'json' };
 import { usdToMicro, type MicroUsd } from './money.ts';
 
 export interface RouteConfig {
@@ -63,8 +65,8 @@ export function parsePricing(raw: unknown): Pricing {
   return { creditUnit, routes };
 }
 
-export function loadPricing(file = 'config/pricing.json'): Pricing {
-  return parsePricing(JSON.parse(readFileSync(file, 'utf8')));
+export function loadPricing(file?: string): Pricing {
+  return parsePricing(file ? JSON.parse(readFileSync(file, 'utf8')) : pricingJson);
 }
 
 export interface MatchedRoute {

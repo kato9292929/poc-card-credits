@@ -7,12 +7,13 @@ import { parseLines } from './types.ts';
 export class HttpLogReader {
   constructor(private readonly baseUrl: string, private readonly token: string) {}
 
-  async readDay(day: string): Promise<any[]> {
-    const r = await fetch(`${this.baseUrl.replace(/\/$/, '')}/logs/${day}`, {
+  /** kind = 'gateway'（GET /logs/:date）または 'buyer'（GET /logs/buyer/:date） */
+  async readDay(day: string, kind: 'gateway' | 'buyer' = 'gateway'): Promise<any[]> {
+    const r = await fetch(`${this.baseUrl.replace(/\/$/, '')}/logs/${kind === 'buyer' ? 'buyer/' : ''}${day}`, {
       headers: { authorization: `Bearer ${this.token}` },
     });
     if (r.status === 404) return [];
-    if (!r.ok) throw new Error(`GET /logs/${day} → HTTP ${r.status}`);
+    if (!r.ok) throw new Error(`GET /logs/${kind === 'buyer' ? 'buyer/' : ''}${day} → HTTP ${r.status}`);
     return parseLines(await r.text());
   }
 }

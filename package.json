@@ -19,13 +19,15 @@
     "wallet:new": "tsx scripts/new-wallet.ts",
     "logs:issue-read-token": "tsx scripts/issue-log-read-token.ts",
     "payg:probe": "tsx scripts/payg-probe.ts",
-    "preflight": "tsx scripts/preflight.ts"
+    "preflight": "tsx scripts/preflight.ts",
+    "buyer:resume": "tsx scripts/buyer-resume.ts"
   },
   "dependencies": {
     "@nevermined-io/payments": "1.13.0",
     "@scure/base": "^2.4.0",
     "@solana/kit": "^5.5.1",
     "@vercel/blob": "2.8.1",
+    "@vercel/functions": "3.10.1",
     "@x402/core": "2.28.0",
     "@x402/evm": "2.28.0",
     "@x402/fetch": "2.28.0",

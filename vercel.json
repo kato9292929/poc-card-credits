@@ -1,0 +1,85 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 0 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 1 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 2 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 3 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 4 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 5 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 6 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 7 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 8 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 9 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 10 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 11 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 12 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 13 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 14 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 15 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 16 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 17 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 18 * * *"
+    },
+    {
+      "path": "/cron/buyer",
+      "schedule": "7 19 * * *"
+    }
+  ]
+}

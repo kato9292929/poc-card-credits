@@ -12,6 +12,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import 'dotenv/config';
+import '../src/settings.ts';
 import { JsonlLog } from '../src/log.ts';
 import { HttpLogReader } from '../src/logstore/http-reader.ts';
 import { microToUsd, usdToMicro } from '../src/money.ts';
@@ -42,12 +43,15 @@ const inWeek = (ts: string) => days.includes(ts.slice(0, 10));
 
 // ゲートウェイのログ：GATEWAY_URL と LOG_READ_TOKEN があれば GET /logs/:date（実証2と同じ読み方）、
 // 無ければ開発時のローカルファイル（LOG_SINK=file の出力）を読む。日付は JST
-const gw: any[] =
-  process.env.GATEWAY_URL && process.env.LOG_READ_TOKEN
-    ? (await Promise.all(days.map((d) => new HttpLogReader(process.env.GATEWAY_URL!, process.env.LOG_READ_TOKEN!).readDay(d)))).flat()
-    : days.flatMap((d) => new JsonlLog(logDir).read(d));
+// デプロイ先（GATEWAY_URL または PUBLIC_BASE_URL）と LOG_READ_TOKEN があれば、ゲートウェイと買い手（Vercel Cron）の
+// ログを GET /logs/:date・/logs/buyer/:date から読む。無ければ開発用のローカルファイルを読む
+const remoteBase = process.env.GATEWAY_URL ?? process.env.PUBLIC_BASE_URL;
+const reader = remoteBase && process.env.LOG_READ_TOKEN ? new HttpLogReader(remoteBase, process.env.LOG_READ_TOKEN) : undefined;
+const gw: any[] = reader ? (await Promise.all(days.map((d) => reader.readDay(d)))).flat() : days.flatMap((d) => new JsonlLog(logDir).read(d));
 const buyerLog = new JsonlLog(logDir, 'buyer-');
-const buyer = buyerLog.days().filter((d) => days.includes(d)).flatMap((d) => buyerLog.read(d));
+const buyer: any[] = reader
+  ? (await Promise.all(days.map((d) => reader.readDay(d, 'buyer')))).flat()
+  : buyerLog.days().filter((d) => days.includes(d)).flatMap((d) => buyerLog.read(d));
 const events = existsSync(`${logDir}/events.jsonl`)
   ? readFileSync(`${logDir}/events.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
   : [];

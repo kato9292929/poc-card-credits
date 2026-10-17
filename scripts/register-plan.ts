@@ -19,7 +19,7 @@
  *   npm run plan:register -- --plan-id <ID> --confirm  # 中身を自動で確かめきれないとき（目視確認後）
  */
 import 'dotenv/config';
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { Payments } from '@nevermined-io/payments';
 import { nvmEnvironment, required } from '../src/config.ts';
 import { usdToMicro } from '../src/money.ts';
@@ -48,7 +48,8 @@ if (process.argv.includes('--try-sdk-expiry')) {
     const r = await payments.plans.registerPlan(
       { name: plan.name, description: plan.description, accessLimit: 'credits' },
       payments.plans.getFiatPriceConfig(usdToMicro(plan.priceUsd), required('NVM_RECEIVER_ADDRESS') as `0x${string}`),
-      { ...payments.plans.getFixedCreditsConfig(BigInt(plan.credits), 1n), durationSecs },
+      // movers は 2 クレジット消費するので、1リクエストあたり最小 1・最大 2 の可変にする
+      { ...payments.plans.getDynamicCreditsConfig(BigInt(plan.credits), 1n, 2n), durationSecs },
       undefined,
       'credits',
     );
@@ -71,7 +72,7 @@ if (!planId) {
     説明            ${plan.description}
     種類            Credits（クレジット制）。有効期限 ${plan.durationDays} 日
     価格            Fiat ${plan.priceUsd} USD（Stripe checkout）
-    クレジット      ${plan.credits}（1リクエストあたり 1。ゲートウェイが settle 時に 1〜2 を指定する）
+    クレジット      ${plan.credits}。1リクエストあたりの消費は可変で 最小 1・最大 2（JIN movers が 2 クレジット）
 
 作成後に、表示されたプラン ID を使って次を実行する（エージェントを登録して紐づける）:
   npm run plan:register -- --plan-id <PLAN_ID>
@@ -102,6 +103,8 @@ const checks: [string, string | undefined, string][] = [
   ['価格（小数6桁単位）', pick('registry.price.amounts.0', 'price.amounts.0'), String(usdToMicro(plan.priceUsd))],
   ['クレジット数', pick('registry.credits.amount', 'credits.amount', 'creditsConfig.amount'), String(plan.credits)],
   ['有効期限（秒）', pick('registry.credits.durationSecs', 'credits.durationSecs', 'creditsConfig.durationSecs'), String(plan.durationDays * 86_400)],
+  ['1リクエストあたりの最小クレジット', pick('registry.credits.minAmount', 'credits.minAmount', 'creditsConfig.minAmount'), '1'],
+  ['1リクエストあたりの最大クレジット', pick('registry.credits.maxAmount', 'credits.maxAmount', 'creditsConfig.maxAmount'), '2'],
 ];
 let mismatch = false;
 let unknown = false;
@@ -160,4 +163,12 @@ try {
 const endpoints = form === 'pattern' ? patternEndpoints : expandedEndpoints;
 event({ event: 'agent_registered', agentId, endpointsForm: form, endpoints, patternError });
 console.log(JSON.stringify({ environment, NVM_AGENT_ID: agentId, NVM_PLAN_ID: planId, endpointsForm: form, endpoints, patternError }, null, 2));
+
+// プラン ID とエージェント ID は秘密ではないので config/sandbox.json に書く（コミットする。Vercel の環境変数に入れ直さなくて済む）
+const settingsFile = 'config/sandbox.json';
+const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
+settings.NVM_PLAN_ID = planId;
+settings.NVM_AGENT_ID = agentId;
+writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + '\n');
+console.log(`${settingsFile} に NVM_PLAN_ID と NVM_AGENT_ID を書いた（コミットして push すると Vercel にも反映される）`);
 console.log(`\ndocs/nevermined.md の「使っている API」に、endpoints を ${form === 'pattern' ? ':ticker 付きのパターン' : '実パスの列挙'} で登録できたことを書く。`);

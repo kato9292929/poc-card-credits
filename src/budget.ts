@@ -48,6 +48,15 @@ export class SpendGuard {
     return { day: this.day, spent: this.spent, reserved: this.reserved, maxPerCall: this.maxPerCall, maxPerDay: this.maxPerDay };
   }
 
+  /**
+   * 保存先のログから読んだ当日の支払い済み額を取り込む（複数のインスタンスで動く Vercel 用）。
+   * 自分の記録より多ければそちらに合わせる。減らすことはしない。
+   */
+  observe(day: string, spentFromLog: MicroUsd): void {
+    this.rollover();
+    if (day === this.day && spentFromLog > this.spent) this.spent = spentFromLog;
+  }
+
   reserve(amount: MicroUsd): ReserveResult {
     this.rollover();
     if (amount <= 0n) throw new Error('reserve amount must be > 0');
