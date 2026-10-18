@@ -3,7 +3,7 @@
   "NVM_ENVIRONMENT": "sandbox",
   "NVM_PLAN_ID": "",
   "NVM_AGENT_ID": "",
-  "PUBLIC_BASE_URL": "",
+  "PUBLIC_BASE_URL": "https://poc-card-credits.vercel.app",
   "UPSTREAM_JIN_URL": "",
   "UPSTREAM_OSD_URL": "",
   "MAX_USD_PER_CALL": "",
