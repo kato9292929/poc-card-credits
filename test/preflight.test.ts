@@ -27,7 +27,7 @@ const FULL = {
 function preflight(env: Record<string, string>): { code: number; out: string } {
   try {
     // 値はすべて env で渡す（親プロセスの環境は引き継がない）
-    const out = execFileSync('npx', ['tsx', 'scripts/preflight.ts', 'gateway'], { env: { PATH: process.env.PATH!, HOME: process.env.HOME!, ...env }, encoding: 'utf8' });
+    const out = execFileSync('npx', ['tsx', 'scripts/preflight.ts', 'gateway'], { env: { PATH: process.env.PATH!, HOME: process.env.HOME!, SANDBOX_SETTINGS_FILE: '/nonexistent', ...env }, encoding: 'utf8' });
     return { code: 0, out };
   } catch (e: any) {
     return { code: e.status, out: String(e.stdout) };

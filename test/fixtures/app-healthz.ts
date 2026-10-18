@@ -5,7 +5,7 @@ const { app } = await createGatewayApp();
 const s = app.listen(0, async () => {
   const base = `http://127.0.0.1:${(s.address() as any).port}`;
   const h = await fetch(`${base}/healthz`);
-  const j = await fetch(`${base}/jin/series`);
+  const j = await fetch(`${base}/api/jin/series`);
   console.log(JSON.stringify({ h: h.status, body: await h.json(), j: j.status }));
   s.close();
 });

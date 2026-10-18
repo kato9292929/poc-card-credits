@@ -102,7 +102,7 @@ export function assertRoutesWithinCap(pricing: Pricing, maxPerCall: bigint): voi
 
 /**
  * エージェント登録の endpoints（Nevermined の URL 許可リスト）を作る（追加指示 v2 §2）。
- * - pattern: ルートのパスをそのまま（/osd/catalysts/:ticker）
+ * - pattern: ルートのパスをそのまま（パラメータは :name のまま）
  * - expanded: パラメータ付きのルートは、買い手エージェントが呼ぶ実パスに展開する
  */
 export function agentEndpoints(pricing: Pricing, baseUrl: string, buyerPaths: string[]) {

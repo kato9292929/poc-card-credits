@@ -1,31 +1,31 @@
 {
-  "$comment": "クレジット1単位 = creditUnitUsd。各ルートの credits は priceUsd / creditUnitUsd と一致している必要がある（起動時に検証）。priceUsd はゲートウェイが裏で払う x402 の価格で、上流の 402 が提示した額と一致しなければ購入しない。価格はすべて仮の値（§5 の測定後に見直す）。",
+  "$comment": "クレジット1単位 = creditUnitUsd。各ルートの credits は priceUsd / creditUnitUsd と一致している必要がある（起動時に検証）。priceUsd はゲートウェイが裏で払う x402 の価格で、上流の 402 が提示した額と一致しなければ購入しない。パスは上流の公開パスと同じ。価格は上流のリポジトリ（Japan-Inflation-Nowcast・onchain-stock-data）で 2026-10-18 に確認。OSD の /api/catalyst/{ticker}（0.001 USDC）は 1 クレジット未満で表せないため使わない。",
   "creditUnitUsd": "0.01",
   "routes": [
     {
       "id": "jin.series",
       "method": "GET",
-      "path": "/jin/series",
+      "path": "/api/jin/series",
       "upstream": "jin",
-      "upstreamPath": "/jin/series",
+      "upstreamPath": "/api/jin/series",
       "priceUsd": "0.01",
       "credits": 1
     },
     {
       "id": "jin.movers",
       "method": "GET",
-      "path": "/jin/movers",
+      "path": "/api/jin/movers",
       "upstream": "jin",
-      "upstreamPath": "/jin/movers",
+      "upstreamPath": "/api/jin/movers",
       "priceUsd": "0.02",
       "credits": 2
     },
     {
-      "id": "osd.catalysts",
+      "id": "osd.jp.catalysts",
       "method": "GET",
-      "path": "/osd/catalysts/:ticker",
+      "path": "/api/alpha/jp/catalysts",
       "upstream": "osd",
-      "upstreamPath": "/osd/catalysts/:ticker",
+      "upstreamPath": "/api/alpha/jp/catalysts",
       "priceUsd": "0.01",
       "credits": 1
     }

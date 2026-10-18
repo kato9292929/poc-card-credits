@@ -20,7 +20,7 @@ function deps(reply: (path: string) => { status: number; body: unknown; headers?
       return r;
     },
     gatewayUrl: 'https://gw.example/',
-    paths: ['/jin/series', '/osd/catalysts/AAPL'],
+    paths: ['/api/jin/series', '/api/alpha/jp/catalysts'],
     callsPerDay: 3,
     salt: 's',
     now: () => new Date('2026-10-14T01:00:00Z'),
@@ -39,7 +39,7 @@ function deps(reply: (path: string) => { status: number; body: unknown; headers?
 test('alternates JIN and OSD, stops at the daily quota, logs delegation creation once', async () => {
   const { d, store, called } = deps(() => ({ status: 200, body: { ok: 1 }, headers: { 'x-credits-consumed': '1' } }));
   for (let i = 0; i < 4; i++) await runBuyerCron(d);
-  assert.deepEqual(called, ['/jin/series', '/osd/catalysts/AAPL', '/jin/series']);
+  assert.deepEqual(called, ['/api/jin/series', '/api/alpha/jp/catalysts', '/api/jin/series']);
   const lines = parseLines(await store.read('2026-10-14'));
   assert.equal(lines.filter((e) => e.event === 'call').length, 3);
   assert.equal(lines.filter((e) => e.event === 'delegation_created').length, 1);
@@ -50,7 +50,7 @@ test('alternates JIN and OSD, stops at the daily quota, logs delegation creation
 test('insufficient credits: records, stops and notifies; later runs skip until resumed', async () => {
   const { d, store, state, called, notes } = deps(() => ({ status: 402, body: { error: 'insufficient_credits', balance: '0' } }));
   const r = await runBuyerCron(d);
-  assert.deepEqual(r, { action: 'called', status: 402, path: '/jin/series', exhausted: true });
+  assert.deepEqual(r, { action: 'called', status: 402, path: '/api/jin/series', exhausted: true });
   assert.equal(state.value?.stopped, true);
   assert.equal(notes.length, 1);
   const again = await runBuyerCron(d);

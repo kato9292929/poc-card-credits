@@ -11,14 +11,23 @@ test('config/pricing.json is valid and credits match x402 price', () => {
   assert.equal(movers.credits, 2);
 });
 
+// パラメータ付きのルートの扱いは、テスト用の価格表で確かめる（本番の pricing.json には今パラメータ付きのルートが無い）
+const PARAM_PRICING = parsePricing({
+  creditUnitUsd: '0.01',
+  routes: [
+    { id: 'jin.series', method: 'GET', path: '/api/jin/series', upstream: 'jin', upstreamPath: '/api/jin/series', priceUsd: '0.01', credits: 1 },
+    { id: 'osd.t', method: 'GET', path: '/osd/catalysts/:ticker', upstream: 'osd', upstreamPath: '/api/catalyst/:ticker', priceUsd: '0.01', credits: 1 },
+  ],
+});
+
 test('route matching with params', () => {
-  const p = loadPricing();
-  const m = matchRoute(p, 'GET', '/osd/catalysts/7203.T');
-  assert.equal(m?.route.id, 'osd.catalysts');
+  const m = matchRoute(PARAM_PRICING, 'GET', '/osd/catalysts/7203.T');
+  assert.equal(m?.route.id, 'osd.t');
   assert.equal(m?.params.ticker, '7203.T');
-  assert.equal(m?.upstreamPath, '/osd/catalysts/7203.T');
-  assert.equal(matchRoute(p, 'POST', '/jin/series'), undefined);
-  assert.equal(matchRoute(p, 'GET', '/jin/unknown'), undefined);
+  assert.equal(m?.upstreamPath, '/api/catalyst/7203.T');
+  assert.equal(matchRoute(PARAM_PRICING, 'POST', '/api/jin/series'), undefined);
+  assert.equal(matchRoute(loadPricing(), 'GET', '/api/alpha/jp/catalysts')?.route.id, 'osd.jp.catalysts');
+  assert.equal(matchRoute(loadPricing(), 'GET', '/api/jin/unknown'), undefined);
 });
 
 test('rejects credits that do not match the price', () => {
@@ -37,16 +46,14 @@ test('a route priced above the per-call cap prevents startup', () => {
 });
 
 test('agent endpoints: pattern form keeps :ticker, expanded form lists the buyer paths', () => {
-  const { pattern, expanded } = agentEndpoints(loadPricing(), 'https://gw.example/', ['/osd/catalysts/AAPL', '/osd/catalysts/7203.T', '/nope']);
-  assert.deepEqual(pattern, [
-    { GET: 'https://gw.example/jin/series' },
-    { GET: 'https://gw.example/jin/movers' },
-    { GET: 'https://gw.example/osd/catalysts/:ticker' },
-  ]);
+  const { pattern, expanded } = agentEndpoints(PARAM_PRICING, 'https://gw.example/', ['/osd/catalysts/AAPL', '/osd/catalysts/7203.T', '/nope']);
+  assert.deepEqual(pattern, [{ GET: 'https://gw.example/api/jin/series' }, { GET: 'https://gw.example/osd/catalysts/:ticker' }]);
   assert.deepEqual(expanded, [
-    { GET: 'https://gw.example/jin/series' },
-    { GET: 'https://gw.example/jin/movers' },
+    { GET: 'https://gw.example/api/jin/series' },
     { GET: 'https://gw.example/osd/catalysts/AAPL' },
     { GET: 'https://gw.example/osd/catalysts/7203.T' },
   ]);
+  // 本番の価格表はパラメータ付きのルートが無いので、2つの形は同じになる
+  const real = agentEndpoints(loadPricing(), 'https://gw.example', []);
+  assert.deepEqual(real.pattern, real.expanded);
 });

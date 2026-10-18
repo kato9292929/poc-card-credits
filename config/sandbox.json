@@ -4,8 +4,8 @@
   "NVM_PLAN_ID": "",
   "NVM_AGENT_ID": "",
   "PUBLIC_BASE_URL": "https://poc-card-credits.vercel.app",
-  "UPSTREAM_JIN_URL": "",
-  "UPSTREAM_OSD_URL": "",
+  "UPSTREAM_JIN_URL": "https://jin.x402jp.com",
+  "UPSTREAM_OSD_URL": "https://osd.x402jp.com",
   "MAX_USD_PER_CALL": "",
   "MAX_USD_PER_DAY": ""
 }

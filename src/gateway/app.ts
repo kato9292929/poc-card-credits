@@ -186,7 +186,7 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
           return { token: accessToken, delegation };
         },
         gatewayUrl: cfg.publicBaseUrl,
-        paths: [process.env.BUYER_JIN_PATH ?? '/jin/series', process.env.BUYER_OSD_PATH?.split(',')[0] ?? '/osd/catalysts/AAPL'],
+        paths: [process.env.BUYER_JIN_PATH ?? '/api/jin/series', process.env.BUYER_OSD_PATH?.split(',')[0] ?? '/api/alpha/jp/catalysts'],
         callsPerDay: Number(process.env.BUYER_CALLS_PER_DAY ?? 20),
         salt: cfg.logSalt,
         notify: webhook

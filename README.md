@@ -9,7 +9,7 @@
 Nevermined（利用枠の管理・カード決済 / Stripe）
    │ アクセストークン                                          scripts/buyer-token.ts
    ▼
-買い手エージェント ──GET /jin/series（payment-signature: <token>）──▶ ゲートウェイ
+買い手エージェント ──GET /api/jin/series（payment-signature: <token>）──▶ ゲートウェイ
 agents/buyer                                                      src/gateway
                                                   1. verify ＋ 残高確認（Nevermined）
                                                   2. OSD / JIN の x402 をゲートウェイのウォレットで購入
@@ -84,7 +84,7 @@ payg（都度払い）は本番の比較対象から外した（Stripe の USD �
 
 - `/healthz` が 200 を返す
 - `/cron/buyer` は認証が無いと 401
-- `/jin/series` は `nvm:card-delegation` の 402
+- `/api/jin/series` は `nvm:card-delegation` の 402
 
 ## 起動前チェック（追加指示 v2 §3）
 
@@ -104,7 +104,7 @@ payg（都度払い）は本番の比較対象から外した（Stripe の USD �
 | コマンド | 必須（未設定・形式違いなら起動しない） | 任意 |
 |---|---|---|
 | `npm run gateway` | `NVM_API_KEY_SELLER`（接頭辞が `NVM_ENVIRONMENT` と一致）、`NVM_PLAN_ID`、`NVM_AGENT_ID`、`UPSTREAM_JIN_URL`、`UPSTREAM_OSD_URL`、`GATEWAY_WALLET_SECRET`（または `GATEWAY_EVM_PRIVATE_KEY`）、`BLOB_READ_WRITE_TOKEN`、`LOG_SALT` | `PUBLIC_BASE_URL`（既定 `http://localhost:8787`）、`LOG_READ_TOKEN`（32文字以上。未設定なら `GET /logs` を閉じる） |
-| `npm run plan:register -- --plan-id <ID>` | `NVM_API_KEY_SELLER`、`PUBLIC_BASE_URL` | `BUYER_OSD_PATH`（`:ticker` 付きの endpoints が拒否されたときに列挙する実パス。カンマ区切り可。既定 `/osd/catalysts/AAPL`） |
+| `npm run plan:register -- --plan-id <ID>` | `NVM_API_KEY_SELLER`、`PUBLIC_BASE_URL` | `BUYER_OSD_PATH`（`:ticker` 付きの endpoints が拒否されたときに列挙する実パス。カンマ区切り可。今の価格表にはパラメータ付きのルートが無いので使わない） |
 | `npm run plan:register -- --try-sdk-expiry` | `NVM_API_KEY_SELLER`、`NVM_RECEIVER_ADDRESS`（Sandbox のみ） | |
 | `npm run plan:order` | `NVM_API_KEY_BUYER`、`NVM_PLAN_ID` | |
 | `npm run buyer:token` | `NVM_API_KEY_BUYER`、`NVM_PLAN_ID`、`NVM_AGENT_ID` | `BUYER_DELEGATION_LIMIT_CENTS`（50〜100。下げるときだけ）、`BUYER_CARD_PROVIDER`（既定 `stripe`） |
@@ -152,7 +152,7 @@ cp .env.example .env
       npm run plan:register -- --plan-id <ID>
       ```
 
-      `endpoints` は、ゲートウェイの公開パス（`/jin/series`、`/jin/movers`、`/osd/catalysts/:ticker`）を登録する。`:ticker` 付きのパターンが拒否されたら、`BUYER_OSD_PATH` の実パスを列挙して登録し直す。どちらで登録できたかは出力と `log/events.jsonl` に出る
+      `endpoints` は、ゲートウェイの公開パス（`/api/jin/series`、`/api/jin/movers`、`/api/alpha/jp/catalysts`）を登録する。パラメータ付きのルートを足したときは、まずパターンのまま試し、拒否されたら `BUYER_OSD_PATH` の実パスを列挙して登録し直す。どちらで登録できたかは出力と `log/events.jsonl` に出る
    3. App で「クレジット制＋有効期限」が作れなかったときだけ、`npm run plan:register -- --try-sdk-expiry` を1回実行する。`registerPlan` に有効期限 30 日を直接渡して、受け付けられるかを試す
 
 4. **ゲートウェイを起動する。** `/healthz` で次を確認できる

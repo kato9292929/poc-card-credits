@@ -17,7 +17,7 @@ function run(setup: (dir: string) => void): string {
 
 const line = (o: object) => JSON.stringify(o) + '\n';
 const gw = (patch: object) =>
-  line({ time_utc: '2026-10-14T01:00:00.000Z', date_jst: '2026-10-14', tokenId: 't', planKind: 'prepaid', verify: 'valid', settle: 'ok', creditsConsumed: 1, upstreamTx: 'sig1', method: 'GET', path: '/jin/series', outcome: 'ok', status: 200, upstreamCostMicro: '10000', latencyMs: 900, ...patch });
+  line({ time_utc: '2026-10-14T01:00:00.000Z', date_jst: '2026-10-14', tokenId: 't', planKind: 'prepaid', verify: 'valid', settle: 'ok', creditsConsumed: 1, upstreamTx: 'sig1', method: 'GET', path: '/api/jin/series', outcome: 'ok', status: 200, upstreamCostMicro: '10000', latencyMs: 900, ...patch });
 
 test('empty week: every item that cannot be measured says 未計測 with a reason; 経理 has only blank fields', () => {
   const md = run(() => {});

@@ -12,7 +12,7 @@
  *   npm run plan:register                       # プランを App で作る手順を表示して終わる（登録はしない）
  *   npm run plan:register -- --plan-id <ID>     # App で作ったプランの中身を確かめ、エージェントを endpoints 付きで登録して紐づける
  *
- * endpoints（追加指示 v2 §2）: JIN は /jin/series・/jin/movers、OSD は /osd/catalysts/:ticker を
+ * endpoints（追加指示 v2 §2）: ゲートウェイの公開パス（今は /api/jin/series・/api/jin/movers・/api/alpha/jp/catalysts。パラメータ付きのルートがあれば :name のまま）を
  * パターンのまま試す。拒否されたら BUYER_OSD_PATH（カンマ区切り可）の実パスを列挙して登録し直す。
  * どちらで登録できたかを log/events.jsonl（agent_registered）と標準出力に出す。
  *   npm run plan:register -- --try-sdk-expiry   # App で作れなかったときだけ。registerPlan に durationSecs=30日を渡して1回試す（Sandbox のみ）
@@ -126,7 +126,7 @@ if (mismatch || (unknown && !process.argv.includes('--confirm'))) {
 // endpoints（追加指示 v2 §2）：ゲートウェイの公開パスを Nevermined の URL 許可リストに登録する。
 // まず OSD を :ticker 付きのパターンで試し、拒否されたら買い手エージェントが呼ぶ実パスを列挙して登録し直す。
 const base = publicBaseUrl.replace(/\/$/, '');
-const buyerPaths = (process.env.BUYER_OSD_PATH ?? '/osd/catalysts/AAPL').split(',').map((x) => x.trim()).filter(Boolean);
+const buyerPaths = (process.env.BUYER_OSD_PATH ?? '/api/alpha/jp/catalysts').split(',').map((x) => x.trim()).filter(Boolean);
 const { pattern: patternEndpoints, expanded: expandedEndpoints } = agentEndpoints(loadPricing(), base, buyerPaths);
 
 const agentMetadata = {

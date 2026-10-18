@@ -21,7 +21,7 @@ const entry = (time_utc: string, patch: Partial<RequestLogEntry> = {}): RequestL
   creditsConsumed: 1,
   upstreamTx: 'sig',
   method: 'GET',
-  path: '/jin/series',
+  path: '/api/jin/series',
   outcome: 'ok',
   status: 200,
   upstreamCostMicro: '10000',

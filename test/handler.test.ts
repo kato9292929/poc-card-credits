@@ -76,9 +76,9 @@ const req = (path: string, token = 'tok', search = ''): GatewayRequest => ({
 
 test('success: buys upstream, then consumes credits matching the price', async () => {
   const { handle, ledger, upstream, logs } = setup();
-  const res = await handle(req('/jin/movers', 'tok', '?d=1'));
+  const res = await handle(req('/api/jin/movers', 'tok', '?d=1'));
   assert.equal(res.status, 200);
-  assert.equal(upstream.calls[0].url, 'https://jin.example/jin/movers?d=1');
+  assert.equal(upstream.calls[0].url, 'https://jin.example/api/jin/movers?d=1');
   assert.deepEqual(ledger.settled, [2]);
   assert.equal(logs[0].outcome, 'ok');
   assert.equal(logs[0].creditsConsumed, 2);
@@ -90,7 +90,7 @@ test('success: buys upstream, then consumes credits matching the price', async (
 
 test('upstream failure: credits are NOT consumed', async () => {
   const { handle, ledger, logs } = setup(() => ({ status: 500, body: new Uint8Array(), attemptedMicro: 10_000n, paidMicro: 0n, latencyMs: 1, error: 'boom' }));
-  const res = await handle(req('/jin/series'));
+  const res = await handle(req('/api/jin/series'));
   assert.equal(res.status, 502);
   assert.deepEqual(ledger.settled, []);
   assert.equal(logs[0].outcome, 'upstream_failed');
@@ -99,7 +99,7 @@ test('upstream failure: credits are NOT consumed', async () => {
 
 test('missing token: 402 with payment-required header, no upstream call', async () => {
   const { handle, upstream } = setup();
-  const res = await handle(req('/jin/series', ''));
+  const res = await handle(req('/api/jin/series', ''));
   assert.equal(res.status, 402);
   assert.ok(res.headers['payment-required']);
   assert.equal(upstream.calls.length, 0);
@@ -108,7 +108,7 @@ test('missing token: 402 with payment-required header, no upstream call', async 
 test('insufficient balance: 402 before any upstream purchase (avoids card top-up)', async () => {
   const { handle, ledger, upstream, logs } = setup();
   ledger.balanceOf = 1n;
-  const res = await handle(req('/jin/movers'));
+  const res = await handle(req('/api/jin/movers'));
   assert.equal(res.status, 402);
   assert.equal(JSON.parse(res.body as string).error, 'insufficient_credits');
   assert.equal(upstream.calls.length, 0);
@@ -118,7 +118,7 @@ test('insufficient balance: 402 before any upstream purchase (avoids card top-up
 test('verify says insufficient: 402 insufficient_credits', async () => {
   const { handle, ledger } = setup();
   ledger.verifyOk = false;
-  const res = await handle(req('/jin/series'));
+  const res = await handle(req('/api/jin/series'));
   assert.equal(res.status, 402);
   assert.equal(JSON.parse(res.body as string).error, 'insufficient_credits');
 });
@@ -126,9 +126,9 @@ test('verify says insufficient: 402 insufficient_credits', async () => {
 test('daily cap: requests beyond the cap are refused and consume nothing', async () => {
   const guard = new SpendGuard(usdToMicro('0.05'), usdToMicro('0.03'));
   const { handle, ledger, logs } = setup(ok, guard);
-  assert.equal((await handle(req('/jin/movers'))).status, 200); // $0.02
-  assert.equal((await handle(req('/jin/series'))).status, 200); // $0.03 total
-  const res = await handle(req('/jin/series'));
+  assert.equal((await handle(req('/api/jin/movers'))).status, 200); // $0.02
+  assert.equal((await handle(req('/api/jin/series'))).status, 200); // $0.03 total
+  const res = await handle(req('/api/jin/series'));
   assert.equal(res.status, 503);
   assert.deepEqual(ledger.settled, [2, 1]);
   assert.equal(logs[2].outcome, 'gateway_cap_exceeded');
@@ -137,7 +137,7 @@ test('daily cap: requests beyond the cap are refused and consume nothing', async
 test('settle failure: data is withheld and logged as unrecovered cost', async () => {
   const { handle, ledger, logs } = setup();
   ledger.settleResult = { ok: false, error: 'nvm down' };
-  const res = await handle(req('/osd/catalysts/AAPL'));
+  const res = await handle(req('/api/alpha/jp/catalysts'));
   assert.equal(res.status, 502);
   assert.equal(logs[0].outcome, 'settle_failed');
   assert.equal(logs[0].upstreamCostMicro, '10000');
@@ -146,7 +146,7 @@ test('settle failure: data is withheld and logged as unrecovered cost', async ()
 test('concurrent requests cannot overdraw the prepaid balance', async () => {
   const { handle, ledger, upstream } = setup();
   ledger.balanceOf = 2n;
-  const results = await Promise.all([handle(req('/jin/movers')), handle(req('/jin/movers'))]);
+  const results = await Promise.all([handle(req('/api/jin/movers')), handle(req('/api/jin/movers'))]);
   const statuses = results.map((r) => r.status).sort();
   assert.deepEqual(statuses, [200, 402]);
   assert.equal(upstream.calls.length, 1);
@@ -162,7 +162,7 @@ test('BLOCK_CARD_TOPUP=false: no gateway pre-check, Nevermined top-up is recorde
   const { handle, ledger, upstream, logs } = setup(ok, guard, false);
   ledger.balanceOf = 0n;
   ledger.settleResult = { ok: true, creditsRedeemed: 1, remaining: '999', tx: '0xs', topUpOrderTx: 'pi_topup' };
-  const res = await handle(req('/jin/series'));
+  const res = await handle(req('/api/jin/series'));
   assert.equal(res.status, 200);
   assert.equal(upstream.calls.length, 1);
   assert.equal(logs[0].cardTopUpOrderTx, 'pi_topup');
@@ -171,8 +171,8 @@ test('BLOCK_CARD_TOPUP=false: no gateway pre-check, Nevermined top-up is recorde
 test('every log line has the required fields, including requests rejected early', async () => {
   const { handle, logs } = setup();
   await handle(req('/nope'));
-  await handle(req('/jin/series', ''));
-  await handle(req('/jin/series'));
+  await handle(req('/api/jin/series', ''));
+  await handle(req('/api/jin/series'));
   for (const e of logs) {
     for (const k of ['time_utc', 'date_jst', 'tokenId', 'planKind', 'verify', 'settle', 'creditsConsumed', 'upstreamTx']) {
       assert.ok(k in e, `${k} missing (${e.outcome})`);
@@ -190,14 +190,14 @@ test('every log line has the required fields, including requests rejected early'
 
 test('the endpoint sent to Nevermined is the actual requested URL (ticker expanded)', async () => {
   const { handle, ledger } = setup();
-  await handle(req('/osd/catalysts/AAPL'));
-  assert.deepEqual(ledger.endpoints, ['https://gw.example/osd/catalysts/AAPL']);
+  await handle(req('/api/alpha/jp/catalysts'));
+  assert.deepEqual(ledger.endpoints, ['https://gw.example/api/alpha/jp/catalysts']);
 });
 
 test('per-call cap lowered to $0.001: the request is refused before signing and nothing is settled', async () => {
   const guard = new SpendGuard(usdToMicro('0.001'), usdToMicro('5'));
   const { handle, ledger, logs } = setup(ok, guard);
-  const res = await handle(req('/jin/series'));
+  const res = await handle(req('/api/jin/series'));
   assert.equal(res.status, 503);
   assert.deepEqual(ledger.settled, []);
   assert.equal(logs[0].outcome, 'gateway_cap_exceeded');
