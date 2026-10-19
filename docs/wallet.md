@@ -10,3 +10,4 @@
 
 | 作成日時（UTC） | 環境 | ネットワーク | 公開アドレス | 用途・備考 |
 |---|---|---|---|---|
+| 2026-10-19T14:17:39.775Z | sandbox | Solana mainnet | `3HG2HYh5EyGR5BnL5UaHeNkz2qA1tdwFizSbGKmkrcgV` | ゲートウェイ（x402 の支払い元） |
