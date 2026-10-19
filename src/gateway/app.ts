@@ -103,17 +103,21 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
   // （Vercel では複数のインスタンスが並ぶので、ほかのインスタンスの支払いも数えるため）
   const spentFromLog = (text: string | null) =>
     parseLines(text).reduce((sum, e) => sum + BigInt(e.upstreamAttemptMicro ?? e.upstreamCostMicro ?? '0'), 0n);
+  // Vercel の Blob（BLOB_STORE_ID ＋ OIDC）は、リクエストの中でしか認証できない（OIDC トークンはリクエストのヘッダーで渡される）。
+  // そのため Blob のときは起動時に読まず、支払いの直前の syncSpend だけで当日の額を取り込む（読めなければ支払わない）。
   const today = jstDay();
-  let initial: bigint;
-  try {
-    initial = spentFromLog(await store.read(today));
-  } catch (e) {
-    // 当日の支払い額を読めないと日次上限を守れないので、支払いを受け付けない状態で起動する
-    const reason = `log store unavailable: ${(e as Error).message}`;
-    console.error(`[startup] ${reason}`);
-    app.get('/healthz', (_req, res) => void res.status(503).json({ ok: false, reason }));
-    app.use((_req, res) => void res.status(503).json({ error: 'log_store_unavailable' }));
-    return { app, flush: async () => {} };
+  let initial = 0n;
+  if (cfg.logSink !== 'blob') {
+    try {
+      initial = spentFromLog(await store.read(today));
+    } catch (e) {
+      // 当日の支払い額を読めないと日次上限を守れないので、支払いを受け付けない状態で起動する
+      const reason = `log store unavailable: ${(e as Error).message}`;
+      console.error(`[startup] ${reason}`);
+      app.get('/healthz', (_req, res) => void res.status(503).json({ ok: false, reason }));
+      app.use((_req, res) => void res.status(503).json({ error: 'log_store_unavailable' }));
+      return { app, flush: async () => {} };
+    }
   }
   const guard = new SpendGuard(cfg.maxPerCall, cfg.maxPerDay, (day) => (day === today ? initial : 0n));
   const syncSpend = async () => {
@@ -143,10 +147,19 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     syncSpend: cfg.logSink === 'blob' ? syncSpend : undefined,
   });
 
-  app.get('/healthz', (_req, res) => {
+  app.get('/healthz', async (_req, res) => {
+    // ログの保存先を、このリクエストの中で読めるか確かめる（読めなければ支払いも止まるので 503）
+    let logStore: string;
+    try {
+      if (cfg.logSink === 'blob') await syncSpend();
+      logStore = 'ok';
+    } catch (e) {
+      logStore = `unavailable: ${(e as Error).message}`;
+    }
     const s = guard.snapshot();
-    res.json({
-      ok: true,
+    res.status(logStore === 'ok' ? 200 : 503).json({
+      ok: logStore === 'ok',
+      logStore,
       nvmEnvironment: cfg.nvmEnvironment,
       upstreamTestnetOnly: cfg.testnetOnly,
       upstreamMainnetPurchase: cfg.upstreamMainnetPurchase,
