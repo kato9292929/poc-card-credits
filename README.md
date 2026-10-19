@@ -152,7 +152,7 @@ cp .env.example .env
       npm run plan:register -- --plan-id <ID>
       ```
 
-      `endpoints` は、ゲートウェイの公開パス（`/api/jin/series`、`/api/jin/movers`、`/api/alpha/jp/catalysts`）を登録する。パラメータ付きのルートを足したときは、まずパターンのまま試し、拒否されたら `BUYER_OSD_PATH` の実パスを列挙して登録し直す。どちらで登録できたかは出力と `log/events.jsonl` に出る
+      `endpoints` は、ゲートウェイの公開パス（`/api/jin/series`、`/api/alpha/jp/catalysts`）を登録する。パラメータ付きのルートを足したときは、まずパターンのまま試し、拒否されたら `BUYER_OSD_PATH` の実パスを列挙して登録し直す。どちらで登録できたかは出力と `log/events.jsonl` に出る
    3. App で「クレジット制＋有効期限」が作れなかったときだけ、`npm run plan:register -- --try-sdk-expiry` を1回実行する。`registerPlan` に有効期限 30 日を直接渡して、受け付けられるかを試す
 
 4. **ゲートウェイを起動する。** `/healthz` で次を確認できる

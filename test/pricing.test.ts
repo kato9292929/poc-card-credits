@@ -6,9 +6,9 @@ import { HARD_MAX_PER_CALL } from '../src/config.ts';
 test('config/pricing.json is valid and credits match x402 price', () => {
   const p = loadPricing();
   const series = p.routes.find((r) => r.id === 'jin.series')!;
-  const movers = p.routes.find((r) => r.id === 'jin.movers')!;
   assert.equal(series.credits, 1);
-  assert.equal(movers.credits, 2);
+  // プランは 1 リクエスト 1 クレジット固定なので、すべてのルートが 1 クレジット
+  assert.ok(p.routes.every((r) => r.credits === 1));
 });
 
 // パラメータ付きのルートの扱いは、テスト用の価格表で確かめる（本番の pricing.json には今パラメータ付きのルートが無い）

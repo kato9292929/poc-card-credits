@@ -1,8 +1,8 @@
 {
   "$comment": "秘密ではない設定値（コミットする）。環境変数が設定されていれば、そちらが優先される。秘密鍵・API キー・トークンはここに書かない。",
   "NVM_ENVIRONMENT": "sandbox",
-  "NVM_PLAN_ID": "",
-  "NVM_AGENT_ID": "",
+  "NVM_PLAN_ID": "61852813790907981549543018232399411968336511683982723564743066269725851774087",
+  "NVM_AGENT_ID": "2332521029535618459092285951650926563931004600551980132707236962664112986618",
   "PUBLIC_BASE_URL": "https://poc-card-credits.vercel.app",
   "UPSTREAM_JIN_URL": "https://jin.x402jp.com",
   "UPSTREAM_OSD_URL": "https://osd.x402jp.com",

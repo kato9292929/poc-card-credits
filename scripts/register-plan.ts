@@ -12,7 +12,7 @@
  *   npm run plan:register                       # プランを App で作る手順を表示して終わる（登録はしない）
  *   npm run plan:register -- --plan-id <ID>     # App で作ったプランの中身を確かめ、エージェントを endpoints 付きで登録して紐づける
  *
- * endpoints（追加指示 v2 §2）: ゲートウェイの公開パス（今は /api/jin/series・/api/jin/movers・/api/alpha/jp/catalysts。パラメータ付きのルートがあれば :name のまま）を
+ * endpoints（追加指示 v2 §2）: ゲートウェイの公開パス（今は /api/jin/series・/api/alpha/jp/catalysts。パラメータ付きのルートがあれば :name のまま）を
  * パターンのまま試す。拒否されたら BUYER_OSD_PATH（カンマ区切り可）の実パスを列挙して登録し直す。
  * どちらで登録できたかを log/events.jsonl（agent_registered）と標準出力に出す。
  *   npm run plan:register -- --try-sdk-expiry   # App で作れなかったときだけ。registerPlan に durationSecs=30日を渡して1回試す（Sandbox のみ）
@@ -48,8 +48,8 @@ if (process.argv.includes('--try-sdk-expiry')) {
     const r = await payments.plans.registerPlan(
       { name: plan.name, description: plan.description, accessLimit: 'credits' },
       payments.plans.getFiatPriceConfig(usdToMicro(plan.priceUsd), required('NVM_RECEIVER_ADDRESS') as `0x${string}`),
-      // movers は 2 クレジット消費するので、1リクエストあたり最小 1・最大 2 の可変にする
-      { ...payments.plans.getDynamicCreditsConfig(BigInt(plan.credits), 1n, 2n), durationSecs },
+      // App のプランと同じく 1 リクエスト 1 クレジット固定
+      { ...payments.plans.getFixedCreditsConfig(BigInt(plan.credits), 1n), durationSecs },
       undefined,
       'credits',
     );
@@ -72,7 +72,7 @@ if (!planId) {
     説明            ${plan.description}
     種類            Credits（クレジット制）。有効期限 ${plan.durationDays} 日
     価格            Fiat ${plan.priceUsd} USD（Stripe checkout）
-    クレジット      ${plan.credits}。1リクエストあたりの消費は可変で 最小 1・最大 2（JIN movers が 2 クレジット）
+    クレジット      ${plan.credits}。1リクエストあたり 1 クレジット固定
 
 作成後に、表示されたプラン ID を使って次を実行する（エージェントを登録して紐づける）:
   npm run plan:register -- --plan-id <PLAN_ID>
@@ -98,13 +98,19 @@ const pick = (...paths: string[]) => {
   }
   return undefined;
 };
+const sumAmounts = () => {
+  const a = (p?.registry?.price?.amounts ?? p?.price?.amounts) as unknown[] | undefined;
+  return Array.isArray(a) ? String(a.reduce<bigint>((s, x) => s + BigInt(String(x)), 0n)) : undefined;
+};
 const checks: [string, string | undefined, string][] = [
   ['法定通貨（isCrypto=false）', pick('registry.price.isCrypto', 'price.isCrypto'), 'false'],
-  ['価格（小数6桁単位）', pick('registry.price.amounts.0', 'price.amounts.0'), String(usdToMicro(plan.priceUsd))],
+  // amounts は受取人ごとの内訳（売り手の取り分と Nevermined の手数料）なので合計で比べる
+  ['価格（小数6桁単位、受取人の合計）', sumAmounts(), String(usdToMicro(plan.priceUsd))],
   ['クレジット数', pick('registry.credits.amount', 'credits.amount', 'creditsConfig.amount'), String(plan.credits)],
   ['有効期限（秒）', pick('registry.credits.durationSecs', 'credits.durationSecs', 'creditsConfig.durationSecs'), String(plan.durationDays * 86_400)],
   ['1リクエストあたりの最小クレジット', pick('registry.credits.minAmount', 'credits.minAmount', 'creditsConfig.minAmount'), '1'],
-  ['1リクエストあたりの最大クレジット', pick('registry.credits.maxAmount', 'credits.maxAmount', 'creditsConfig.maxAmount'), '2'],
+  ['1リクエストあたりの最大クレジット', pick('registry.credits.maxAmount', 'credits.maxAmount', 'creditsConfig.maxAmount'), '1'],
+  ['x402 のスキーム', pick('metadata.plan.x402Scheme'), 'nvm:card-delegation'],
 ];
 let mismatch = false;
 let unknown = false;

@@ -1,7 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHandler, type GatewayRequest } from '../src/gateway/handler.ts';
-import { loadPricing } from '../src/pricing.ts';
+import { loadPricing, parsePricing } from '../src/pricing.ts';
+
+// 2 クレジットのルートでの消費量を確かめるため、本番の価格表に $0.02 のルートを1本足したもの
+const real = loadPricing();
+const PRICING = parsePricing({
+  creditUnitUsd: '0.01',
+  routes: [
+    ...real.routes,
+    { id: 'jin.movers', method: 'GET', path: '/api/jin/movers', upstream: 'jin', upstreamPath: '/api/jin/movers', priceUsd: '0.02', credits: 2 },
+  ],
+});
 import { SpendGuard } from '../src/budget.ts';
 import { usdToMicro } from '../src/money.ts';
 import { toLogLine } from '../src/log.ts';
@@ -53,7 +63,7 @@ function setup(reply = ok, guard = new SpendGuard(usdToMicro('0.05'), usdToMicro
   const upstream = new FakeUpstream(reply);
   const logs: any[] = [];
   const handle = createHandler({
-    pricing: loadPricing(),
+    pricing: PRICING,
     ledger,
     upstream,
     guard,

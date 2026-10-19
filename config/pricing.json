@@ -1,5 +1,5 @@
 {
-  "$comment": "クレジット1単位 = creditUnitUsd。各ルートの credits は priceUsd / creditUnitUsd と一致している必要がある（起動時に検証）。priceUsd はゲートウェイが裏で払う x402 の価格で、上流の 402 が提示した額と一致しなければ購入しない。パスは上流の公開パスと同じ。価格は上流のリポジトリ（Japan-Inflation-Nowcast・onchain-stock-data）で 2026-10-18 に確認。OSD の /api/catalyst/{ticker}（0.001 USDC）は 1 クレジット未満で表せないため使わない。",
+  "$comment": "クレジット1単位 = creditUnitUsd。各ルートの credits は priceUsd / creditUnitUsd と一致している必要がある（起動時に検証）。priceUsd はゲートウェイが裏で払う x402 の価格で、上流の 402 が提示した額と一致しなければ購入しない。パスは上流の公開パスと同じ。価格は上流のリポジトリ（Japan-Inflation-Nowcast・onchain-stock-data）で 2026-10-18 に確認。OSD の /api/catalyst/{ticker}（0.001 USDC）は 1 クレジット未満で表せないため使わない。 プランは 1 リクエスト 1 クレジット固定（App の Credits per request は1つの値しか取れない）なので、2 クレジットの JIN /api/jin/movers（$0.02）は外した。",
   "creditUnitUsd": "0.01",
   "routes": [
     {
@@ -10,15 +10,6 @@
       "upstreamPath": "/api/jin/series",
       "priceUsd": "0.01",
       "credits": 1
-    },
-    {
-      "id": "jin.movers",
-      "method": "GET",
-      "path": "/api/jin/movers",
-      "upstream": "jin",
-      "upstreamPath": "/api/jin/movers",
-      "priceUsd": "0.02",
-      "credits": 2
     },
     {
       "id": "osd.jp.catalysts",
