@@ -70,6 +70,7 @@ payg（都度払い）は本番の比較対象から外した（Stripe の USD �
 - `NVM_AGENT_ID`
 - `PUBLIC_BASE_URL`
 - `UPSTREAM_JIN_URL` / `UPSTREAM_OSD_URL`
+- `UPSTREAM_MAINNET_PURCHASE`（`true`）：OSD / JIN は Solana mainnet の USDC しか受け付けないため、Sandbox の間も上流だけ mainnet で買う。`ALLOW_LIVE` とは別物で、`NVM_ENVIRONMENT=live` では起動を拒否する。1回 $0.05・1日 $5 の上限はそのまま効く
 
 環境変数が設定されていれば、そちらが優先される。`plan:register -- --plan-id` は `NVM_PLAN_ID` と `NVM_AGENT_ID` をここに書き込む。
 
@@ -237,7 +238,7 @@ curl -H "Authorization: Bearer $LOG_READ_TOKEN" "$GATEWAY_URL/logs/2026-10-14"
 
 ### 各行の項目
 
-次の8項目は、どの行にも必ず入る。欠けた行は書かず、エラーとして残す。
+次の9項目は、どの行にも必ず入る。欠けた行は書かず、エラーとして残す。
 
 | 項目 | 内容 |
 |---|---|
@@ -249,6 +250,7 @@ curl -H "Authorization: Bearer $LOG_READ_TOKEN" "$GATEWAY_URL/logs/2026-10-14"
 | `settle` | `ok` / エラー内容 / `skipped` |
 | `creditsConsumed` | 消費クレジット |
 | `upstreamTx` | 裏側の x402 の tx 署名。支払っていなければ `none` |
+| `upstreamNetworkMode` | 上流の支払いのネットワーク種別（`mainnet` / `testnet`）。実際に払ったネットワークは、支払ったときだけ `upstreamNetwork`（CAIP-2）に入る |
 
 ほかに次も記録する。
 

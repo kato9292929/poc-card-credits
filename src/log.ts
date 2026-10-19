@@ -64,6 +64,9 @@ export interface RequestLogEntry {
   upstreamCostMicro: string;
   /** 署名して送った支払いの額（決済未確認も含む）。日次上限の復元に使う */
   upstreamAttemptMicro?: string;
+  /** 上流の支払いに使うネットワークの種別（全行に入れる）。実証2で、このゲートウェイの mainnet 上の支払いを見分けるため */
+  upstreamNetworkMode: 'mainnet' | 'testnet';
+  /** 実際に支払ったネットワーク（CAIP-2）。上流に支払いを送ったときだけ */
   upstreamNetwork?: string;
   upstreamStatus?: number;
   nvmSettleTx?: string;
@@ -75,7 +78,7 @@ export interface RequestLogEntry {
   error?: string;
 }
 
-const REQUIRED_KEYS = ['time_utc', 'date_jst', 'tokenId', 'planKind', 'verify', 'settle', 'creditsConsumed', 'upstreamTx'] as const;
+const REQUIRED_KEYS = ['time_utc', 'date_jst', 'tokenId', 'planKind', 'verify', 'settle', 'creditsConsumed', 'upstreamTx', 'upstreamNetworkMode'] as const;
 
 /** 必須項目がそろっているかを確かめて1行の JSON にする。欠けていれば例外（書き込まない）。 */
 export function toLogLine(e: RequestLogEntry): string {

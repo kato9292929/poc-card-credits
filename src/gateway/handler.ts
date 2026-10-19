@@ -33,6 +33,8 @@ export interface GatewayDeps {
    * false: 残高を見ずに settle し、Nevermined 自身の挙動（自動補充・委任上限での拒否）を測る。
    */
   blockCardTopUp?: boolean;
+  /** 上流の支払いのネットワーク種別。ログの全行に upstreamNetworkMode として残す */
+  upstreamNetworkMode: 'mainnet' | 'testnet';
   /** 支払いの前に、ほかのインスタンスの支払い分を日次上限に取り込む（Vercel のように複数台で動く場合） */
   syncSpend?: () => Promise<void>;
   now?: () => number;
@@ -70,6 +72,7 @@ export function createHandler(deps: GatewayDeps) {
       verify: 'skipped',
       settle: 'skipped',
       upstreamTx: 'none',
+      upstreamNetworkMode: deps.upstreamNetworkMode,
       method: req.method,
       path: req.path,
       outcome: 'ok',

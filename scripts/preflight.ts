@@ -26,14 +26,14 @@ const AGENT: Check = { name: 'NVM_AGENT_ID', why: 'エージェント登録後�
 const PLAN: Check = { name: 'NVM_PLAN_ID', why: 'App で作った prepaid-100 のプラン ID' };
 const WALLET: Check = {
   name: 'GATEWAY_WALLET_SECRET',
-  why: 'npm run wallet:new で作った Solana の秘密鍵（devnet USDC 入金済み）',
+  why: 'npm run wallet:new で作った Solana の秘密鍵（UPSTREAM_MAINNET_PURCHASE=true なら mainnet USDC を入金済み）',
   validate: (v) => (/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(v) ? undefined : 'base58 の 64 バイト秘密鍵に見えない'),
 };
 const BLOB: Check = { name: 'BLOB_READ_WRITE_TOKEN', why: 'Vercel Blob のストアの読み書きトークン（ログの保存先）' };
 const SALT: Check = { name: 'LOG_SALT', why: 'ログのトークン ID 匿名化の塩（任意のランダム文字列）' };
 const PUBLIC_URL: Check = { name: 'PUBLIC_BASE_URL', why: 'ゲートウェイの公開 URL（エージェント登録・payg 試験で使う）', validate: url };
-const JIN: Check = { name: 'UPSTREAM_JIN_URL', why: 'JIN のテスト用 URL', validate: url };
-const OSD: Check = { name: 'UPSTREAM_OSD_URL', why: 'OSD のテスト用 URL', validate: url };
+const JIN: Check = { name: 'UPSTREAM_JIN_URL', why: 'JIN の URL', validate: url };
+const OSD: Check = { name: 'UPSTREAM_OSD_URL', why: 'OSD の URL', validate: url };
 const DELEGATION_LIMIT: Check = {
   name: 'BUYER_DELEGATION_LIMIT_CENTS',
   why: '委任の上限（セント）。既定 100 で、下げることだけできる（50 以上）',
@@ -141,7 +141,7 @@ if (only === 'sandbox' || only === undefined) {
       const j: any = await r.json().catch(() => ({}));
       const lack = [...(j?.missing?.gateway ?? []), ...(j?.missing?.buyerCron ?? []), ...(j?.missing?.logRead ?? [])];
       if (r.status === 200 && j?.ok && lack.length === 0) {
-        console.log(`  ✓ 設定済みで動いている（環境 ${j.nvmEnvironment}、ログ ${j.logSink}、ウォレット ${j.gatewayWallet?.svm ?? j.gatewayWallet?.evm ?? '-'}）`);
+        console.log(`  ✓ 設定済みで動いている（環境 ${j.nvmEnvironment}、上流 ${j.upstreamTestnetOnly ? 'testnet' : 'mainnet'}、ログ ${j.logSink}、ウォレット ${j.gatewayWallet?.svm ?? j.gatewayWallet?.evm ?? '-'}）`);
         if (j.nvmEnvironment !== 'sandbox') {
           console.log('  ✗ Sandbox ではない');
           missing++;

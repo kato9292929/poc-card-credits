@@ -5,6 +5,8 @@
 - `NVM_ENVIRONMENT=live`
 - `UPSTREAM_TESTNET_ONLY=false`（メインネットの USDC での支払い）
 
+`UPSTREAM_MAINNET_PURCHASE=true` は別物。Sandbox の間に上流（OSD / JIN）だけを mainnet の USDC で買うための設定で、OSD / JIN に devnet 版が無いため使う。`NVM_ENVIRONMENT=live` のときは、`ALLOW_LIVE=true` があっても起動を拒否する。本番に移すときは外し、上の2つで切り替える。
+
 | # | 条件 | 確認方法 | 結果 |
 |---|---|---|---|
 | 1 | テスト環境で1週間、裏側の購入に失敗したとき利用枠が消費されないこと | 週次レポートの「失敗時に利用枠が消費されたリクエスト: 0 件」と `upstream_failed` の件数が1件以上あること（上流を一時的に止めるなどして発生させる）。ユニットテスト `test/handler.test.ts` の「upstream failure」 | |

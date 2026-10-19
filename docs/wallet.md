@@ -2,6 +2,7 @@
 
 ゲートウェイが裏側で OSD / JIN を x402 で購入するときの支払い元。実証2の集計では、このアドレスからの支払いを除外リストに入れる（実証1 の仕入れであり、外部の買い手の支払いではないため）。
 
+- **Sandbox の間も mainnet のウォレット**。OSD / JIN は Solana mainnet の USDC しか受け付けないため、上流の購入は mainnet で行う（`UPSTREAM_MAINNET_PURCHASE=true`、Nevermined は Sandbox のまま）。実証2では、このアドレスから JIN / OSD への mainnet 上の支払いを集計から外す
 - 本実証のために新規に作ったウォレットだけを載せる。Autonomous Agent のウォレットは使わない
 - 秘密鍵はここに書かない（`.env` のみ。コミットしない）
 - 行は `npm run wallet:new` が追記する。手で足すときも同じ形式にする。使わなくなったウォレットも消さず、備考に停止日を書く

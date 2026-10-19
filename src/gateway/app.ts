@@ -138,6 +138,7 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     publicBaseUrl: cfg.publicBaseUrl,
     logSalt: cfg.logSalt,
     blockCardTopUp: cfg.blockCardTopUp,
+    upstreamNetworkMode: cfg.testnetOnly ? 'testnet' : 'mainnet',
     syncSpend: cfg.logSink === 'blob' ? syncSpend : undefined,
   });
 
@@ -147,6 +148,7 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
       ok: true,
       nvmEnvironment: cfg.nvmEnvironment,
       upstreamTestnetOnly: cfg.testnetOnly,
+      upstreamMainnetPurchase: cfg.upstreamMainnetPurchase,
       blockCardTopUp: cfg.blockCardTopUp,
       logSink: cfg.logSink,
       logWriteFailures: log.failures,

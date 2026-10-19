@@ -15,6 +15,8 @@ import { base58 } from '@scure/base';
 
 const environment = process.env.NVM_ENVIRONMENT ?? 'sandbox';
 const live = environment === 'live';
+// Sandbox でも上流（OSD / JIN）を mainnet で買う設定なら、ウォレットは mainnet 用（src/config.ts の UPSTREAM_MAINNET_PURCHASE）
+const mainnet = live || process.env.UPSTREAM_MAINNET_PURCHASE === 'true';
 const doc = process.env.WALLET_DOC ?? 'docs/wallet.md';
 if (!existsSync(doc) || !readFileSync(doc, 'utf8').includes('| 作成日時（UTC）')) throw new Error(`${doc} の表が見つからない`);
 
@@ -24,12 +26,12 @@ const seed = Buffer.from(privateKey.export({ format: 'jwk' }).d!, 'base64url');
 const pub = Buffer.from(publicKey.export({ format: 'jwk' }).x!, 'base64url');
 const svmKey = base58.encode(Buffer.concat([seed, pub]));
 const svmAddress = base58.encode(pub);
-const svmNetwork = live ? 'Solana mainnet' : 'Solana devnet';
+const svmNetwork = mainnet ? 'Solana mainnet' : 'Solana devnet';
 
 const evm = process.argv.includes('--evm')
   ? (() => {
       const key = generatePrivateKey();
-      return { key, address: privateKeyToAccount(key).address, network: live ? 'Base' : 'Base Sepolia' };
+      return { key, address: privateKeyToAccount(key).address, network: mainnet ? 'Base' : 'Base Sepolia' };
     })()
   : undefined;
 

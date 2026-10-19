@@ -60,6 +60,8 @@ export interface GatewayConfig {
   maxPerDay: MicroUsd;
   /** true のときテストネットの資産しか払わない（§0：最初はテスト環境だけ）。 */
   testnetOnly: boolean;
+  /** UPSTREAM_MAINNET_PURCHASE=true：Nevermined は Sandbox のまま、上流（OSD / JIN）だけ mainnet の USDC で買う */
+  upstreamMainnetPurchase: boolean;
   /** 残高不足なら settle せず 402（既定 true）。false で Nevermined の自動補充の挙動を測る */
   blockCardTopUp: boolean;
   /** ゲートウェイのログの保存先。blob（既定）= Vercel Blob、file = ローカル（開発時のみ） */
@@ -102,10 +104,17 @@ export function loadGatewayConfig(): GatewayConfig {
   const nvmApiKey = required('NVM_API_KEY_SELLER');
   const nvmEnv = nvmEnvironment(nvmApiKey);
   const allowLive = process.env.ALLOW_LIVE === 'true';
-  const testnetOnly = process.env.UPSTREAM_TESTNET_ONLY !== 'false';
-  if (!testnetOnly && !allowLive) {
-    throw new Error('UPSTREAM_TESTNET_ONLY=false requires ALLOW_LIVE=true');
+  // OSD / JIN は Solana mainnet の USDC しか受け付けない（devnet 版が無い）。そこで Sandbox の間も、上流の購入だけは
+  // UPSTREAM_MAINNET_PURCHASE=true で mainnet を許可する。ALLOW_LIVE とは別物で、Nevermined（カード決済）は Sandbox のまま。
+  // NVM_ENVIRONMENT が sandbox 以外なら、ALLOW_LIVE の有無にかかわらず起動しない。1回・1日の上限はそのまま効く
+  const upstreamMainnetPurchase = process.env.UPSTREAM_MAINNET_PURCHASE === 'true';
+  if (upstreamMainnetPurchase && nvmEnv !== 'sandbox') {
+    throw new Error(`UPSTREAM_MAINNET_PURCHASE=true is for the Sandbox phase only (NVM_ENVIRONMENT=${nvmEnv})`);
   }
+  if (process.env.UPSTREAM_TESTNET_ONLY === 'false' && !allowLive) {
+    throw new Error('UPSTREAM_TESTNET_ONLY=false requires ALLOW_LIVE=true（Sandbox で上流だけ mainnet で買うなら UPSTREAM_MAINNET_PURCHASE=true）');
+  }
+  const testnetOnly = !upstreamMainnetPurchase && process.env.UPSTREAM_TESTNET_ONLY !== 'false';
   const cfg: GatewayConfig = {
     port: Number(process.env.PORT ?? 8787),
     publicBaseUrl: process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 8787}`,
@@ -120,6 +129,7 @@ export function loadGatewayConfig(): GatewayConfig {
     maxPerCall: lowerOnly('MAX_USD_PER_CALL', HARD_MAX_PER_CALL),
     maxPerDay: lowerOnly('MAX_USD_PER_DAY', HARD_MAX_PER_DAY),
     testnetOnly,
+    upstreamMainnetPurchase,
     blockCardTopUp: process.env.BLOCK_CARD_TOPUP !== 'false',
     logSink: (process.env.LOG_SINK ?? 'blob') as 'blob' | 'file',
     blobReadWriteToken: process.env.BLOB_READ_WRITE_TOKEN || undefined,

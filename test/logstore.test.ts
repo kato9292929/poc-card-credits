@@ -20,6 +20,7 @@ const entry = (time_utc: string, patch: Partial<RequestLogEntry> = {}): RequestL
   settle: 'ok',
   creditsConsumed: 1,
   upstreamTx: 'sig',
+  upstreamNetworkMode: 'mainnet',
   method: 'GET',
   path: '/api/jin/series',
   outcome: 'ok',
@@ -138,6 +139,22 @@ test('config: API key prefix must match NVM_ENVIRONMENT; live needs ALLOW_LIVE (
   assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment('sandbox:a', 'live:b')), /does not match/);
 });
 
+test('config: UPSTREAM_MAINNET_PURCHASE opens mainnet upstream in Sandbox only, separate from ALLOW_LIVE', async () => {
+  const { loadGatewayConfig } = await import('../src/config.ts');
+  const run = (env: Record<string, string>) => withEnv(env, () => loadGatewayConfig());
+  assert.equal(run(BASE).testnetOnly, true);
+  const on = run({ ...BASE, UPSTREAM_MAINNET_PURCHASE: 'true' });
+  assert.equal(on.testnetOnly, false);
+  assert.equal(on.upstreamMainnetPurchase, true);
+  // Nevermined が live なら、ALLOW_LIVE=true があっても拒否する
+  assert.throws(
+    () => run({ ...BASE, NVM_API_KEY_SELLER: 'live:k', NVM_ENVIRONMENT: 'live', ALLOW_LIVE: 'true', UPSTREAM_MAINNET_PURCHASE: 'true' }),
+    /Sandbox phase only/,
+  );
+  // 従来の UPSTREAM_TESTNET_ONLY=false は今までどおり ALLOW_LIVE が要る
+  assert.throws(() => run({ ...BASE, UPSTREAM_TESTNET_ONLY: 'false' }), /ALLOW_LIVE/);
+});
+
 const BASE = {
   NVM_API_KEY_SELLER: 'sandbox:k', NVM_PLAN_ID: 'p', NVM_AGENT_ID: 'a', UPSTREAM_OSD_URL: 'https://o', UPSTREAM_JIN_URL: 'https://j',
   LOG_SALT: 's', GATEWAY_WALLET_SECRET: 'x', NVM_ENVIRONMENT: 'sandbox', BLOB_READ_WRITE_TOKEN: 't',
@@ -145,7 +162,7 @@ const BASE = {
 
 function withEnv<T>(env: Record<string, string>, fn: () => T): T {
   const saved = { ...process.env };
-  for (const k of ['LOG_SINK', 'ALLOW_LIVE', 'LOG_READ_TOKEN', 'UPSTREAM_TESTNET_ONLY', 'GATEWAY_EVM_PRIVATE_KEY', 'NODE_ENV', 'NVM_ENVIRONMENT']) delete process.env[k];
+  for (const k of ['LOG_SINK', 'ALLOW_LIVE', 'LOG_READ_TOKEN', 'UPSTREAM_TESTNET_ONLY', 'UPSTREAM_MAINNET_PURCHASE', 'GATEWAY_EVM_PRIVATE_KEY', 'NODE_ENV', 'NVM_ENVIRONMENT']) delete process.env[k];
   Object.assign(process.env, env);
   try {
     return fn();

@@ -63,6 +63,7 @@ function setup(reply = ok, guard = new SpendGuard(usdToMicro('0.05'), usdToMicro
   const upstream = new FakeUpstream(reply);
   const logs: any[] = [];
   const handle = createHandler({
+    upstreamNetworkMode: 'mainnet',
     pricing: PRICING,
     ledger,
     upstream,
@@ -93,6 +94,7 @@ test('success: buys upstream, then consumes credits matching the price', async (
   assert.equal(logs[0].outcome, 'ok');
   assert.equal(logs[0].creditsConsumed, 2);
   assert.equal(logs[0].upstreamTx, 'sig123');
+  assert.equal(logs[0].upstreamNetworkMode, 'mainnet');
   assert.equal(logs[0].upstreamCostMicro, '20000');
   assert.notEqual(logs[0].tokenId, 'tok');
   assert.equal(JSON.stringify(logs[0]).includes('"tok"'), false, 'raw token must not be logged');
@@ -104,6 +106,7 @@ test('upstream failure: credits are NOT consumed', async () => {
   assert.equal(res.status, 502);
   assert.deepEqual(ledger.settled, []);
   assert.equal(logs[0].outcome, 'upstream_failed');
+  assert.equal(logs[0].upstreamNetworkMode, 'mainnet', 'every line records the upstream network');
   assert.equal(logs[0].creditsConsumed, 0);
 });
 
