@@ -123,6 +123,8 @@ test('config: LOG_SINK=file only with NODE_ENV=development; blob needs its token
   const run = (env: Record<string, string>) => withEnv(env, () => loadGatewayConfig());
   assert.equal(run(BASE).logSink, 'blob');
   assert.throws(() => run({ ...BASE, BLOB_READ_WRITE_TOKEN: '' }), /BLOB_READ_WRITE_TOKEN/);
+  // Vercel 上では BLOB_STORE_ID（OIDC で認証）だけで足りる
+  assert.equal(run({ ...BASE, BLOB_READ_WRITE_TOKEN: '', BLOB_STORE_ID: 'store_x' }).blobReadWriteToken, undefined);
   assert.equal(run({ ...BASE, BLOB_READ_WRITE_TOKEN: '', LOG_SINK: 'file', NODE_ENV: 'development' }).logSink, 'file');
   assert.throws(() => run({ ...BASE, LOG_SINK: 'file' }), /development only/); // Sandbox の運用でも file は不可
   assert.throws(() => run({ ...BASE, LOG_SINK: 'file', NODE_ENV: 'production' }), /development only/);
@@ -162,7 +164,7 @@ const BASE = {
 
 function withEnv<T>(env: Record<string, string>, fn: () => T): T {
   const saved = { ...process.env };
-  for (const k of ['LOG_SINK', 'ALLOW_LIVE', 'LOG_READ_TOKEN', 'UPSTREAM_TESTNET_ONLY', 'UPSTREAM_MAINNET_PURCHASE', 'GATEWAY_EVM_PRIVATE_KEY', 'NODE_ENV', 'NVM_ENVIRONMENT']) delete process.env[k];
+  for (const k of ['LOG_SINK', 'ALLOW_LIVE', 'LOG_READ_TOKEN', 'UPSTREAM_TESTNET_ONLY', 'UPSTREAM_MAINNET_PURCHASE', 'BLOB_STORE_ID', 'GATEWAY_EVM_PRIVATE_KEY', 'NODE_ENV', 'NVM_ENVIRONMENT']) delete process.env[k];
   Object.assign(process.env, env);
   try {
     return fn();

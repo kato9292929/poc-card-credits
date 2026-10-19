@@ -17,7 +17,8 @@ export const STATE_PATH = 'state/buyer.json';
 
 /** 状態は上書きする（ログではないので追記のみの制約は無い）。private。 */
 export class BlobStateStore implements StateStore {
-  constructor(private readonly token: string) {}
+  /** token が無ければ @vercel/blob が BLOB_STORE_ID ＋ OIDC で認証する（Vercel 上） */
+  constructor(private readonly token?: string) {}
   async get(): Promise<BuyerState | null> {
     const r = await get(STATE_PATH, { access: 'private', useCache: false, token: this.token });
     if (!r || r.statusCode !== 200) return null;

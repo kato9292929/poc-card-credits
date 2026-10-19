@@ -4,7 +4,8 @@ import { logPath, type LogStore } from './types.ts';
 /**
  * Vercel Blob（@vercel/blob 2.8.1）にログを置く。パスは log/YYYY-MM-DD.jsonl（JST の日付）。
  *
- * - Blob は private（読むには認証が要る）。書き込みには BLOB_READ_WRITE_TOKEN を使い、ゲートウェイだけが持つ
+ * - Blob は private（読むには認証が要る）。Vercel 上では BLOB_STORE_ID ＋ 実行時の OIDC トークン、ローカルでは BLOB_READ_WRITE_TOKEN で認証する。
+ *   どちらもゲートウェイだけが持つ
  * - **追記のみ。** 既存の行を書き換える・消す処理は無い（del() は呼ばない）。
  *   ただし Blob には追記の API が無いので、物理的には「読む → 末尾に1行足す → ETag が一致するときだけ書き戻す（ifMatch）」で
  *   オブジェクトを置き換える。書き戻す内容は必ず「読んだ内容そのまま＋新しい行」で、既存部分が変わらないことを
@@ -21,7 +22,7 @@ export interface BlobApi {
 export class VercelBlobLogStore implements LogStore {
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(private readonly opts: { token: string; maxRetries?: number; api?: BlobApi; prefix?: string }) {}
+  constructor(private readonly opts: { token?: string; maxRetries?: number; api?: BlobApi; prefix?: string }) {}
 
   private get prefix(): string {
     return this.opts.prefix ?? 'log/';

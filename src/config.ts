@@ -143,7 +143,11 @@ export function loadGatewayConfig(): GatewayConfig {
     throw new Error('LOG_READ_TOKEN must be at least 32 characters (npm run logs:issue-read-token)');
   }
   if (cfg.logSink !== 'blob' && cfg.logSink !== 'file') throw new Error('LOG_SINK must be blob or file');
-  if (cfg.logSink === 'blob' && !cfg.blobReadWriteToken) throw new Error('missing BLOB_READ_WRITE_TOKEN (gateway logs go to Vercel Blob)');
+  // Vercel で Blob ストアをつなぐと BLOB_STORE_ID が入り、@vercel/blob が実行時の OIDC トークンで認証する（読み書きトークンは入らない）。
+  // ローカルなどでは BLOB_READ_WRITE_TOKEN を使う
+  if (cfg.logSink === 'blob' && !cfg.blobReadWriteToken && !process.env.BLOB_STORE_ID) {
+    throw new Error('missing BLOB_STORE_ID or BLOB_READ_WRITE_TOKEN (gateway logs go to Vercel Blob)');
+  }
   // ローカルファイルへの出力は開発時だけ（NODE_ENV=development）。Sandbox の運用でも常に Vercel Blob に書く
   if (cfg.logSink === 'file' && (process.env.NODE_ENV !== 'development' || allowLive || nvmEnv !== 'sandbox')) {
     throw new Error('LOG_SINK=file is for local development only (NODE_ENV=development, sandbox, ALLOW_LIVE unset)');

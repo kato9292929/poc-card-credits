@@ -78,7 +78,7 @@ payg（都度払い）は本番の比較対象から外した（Stripe の USD �
 
 | 置き場所 | 変数 |
 |---|---|
-| Vercel のプロジェクトの環境変数 | `NVM_API_KEY_SELLER`、`NVM_API_KEY_BUYER`、`BLOB_READ_WRITE_TOKEN`（Blob ストアをプロジェクトにつなぐと自動で入る）、`GATEWAY_WALLET_SECRET`、`LOG_SALT`、`LOG_READ_TOKEN`、`CRON_SECRET` |
+| Vercel のプロジェクトの環境変数 | `NVM_API_KEY_SELLER`、`NVM_API_KEY_BUYER`、`BLOB_STORE_ID`（Blob ストアをプロジェクトにつなぐと自動で入る。実行時の OIDC トークンで認証するので、読み書きトークンは要らない）、`GATEWAY_WALLET_SECRET`、`LOG_SALT`、`LOG_READ_TOKEN`、`CRON_SECRET` |
 | このリポジトリで作業する Claude Code の環境変数 | `NVM_API_KEY_SELLER`、`NVM_API_KEY_BUYER`、`BLOB_READ_WRITE_TOKEN`、`LOG_READ_TOKEN`、`CRON_SECRET`（ウォレットの秘密鍵と `LOG_SALT` は置かない） |
 
 ローカルでの確認では `npx vercel build` が通り、出力した関数が単体で起動することを確かめた。確かめた内容は次の3つ。
@@ -104,7 +104,7 @@ payg（都度払い）は本番の比較対象から外した（Stripe の USD �
 
 | コマンド | 必須（未設定・形式違いなら起動しない） | 任意 |
 |---|---|---|
-| `npm run gateway` | `NVM_API_KEY_SELLER`（接頭辞が `NVM_ENVIRONMENT` と一致）、`NVM_PLAN_ID`、`NVM_AGENT_ID`、`UPSTREAM_JIN_URL`、`UPSTREAM_OSD_URL`、`GATEWAY_WALLET_SECRET`（または `GATEWAY_EVM_PRIVATE_KEY`）、`BLOB_READ_WRITE_TOKEN`、`LOG_SALT` | `PUBLIC_BASE_URL`（既定 `http://localhost:8787`）、`LOG_READ_TOKEN`（32文字以上。未設定なら `GET /logs` を閉じる） |
+| `npm run gateway` | `NVM_API_KEY_SELLER`（接頭辞が `NVM_ENVIRONMENT` と一致）、`NVM_PLAN_ID`、`NVM_AGENT_ID`、`UPSTREAM_JIN_URL`、`UPSTREAM_OSD_URL`、`GATEWAY_WALLET_SECRET`（または `GATEWAY_EVM_PRIVATE_KEY`）、`BLOB_STORE_ID`（Vercel 上）または `BLOB_READ_WRITE_TOKEN`、`LOG_SALT` | `PUBLIC_BASE_URL`（既定 `http://localhost:8787`）、`LOG_READ_TOKEN`（32文字以上。未設定なら `GET /logs` を閉じる） |
 | `npm run plan:register -- --plan-id <ID>` | `NVM_API_KEY_SELLER`、`PUBLIC_BASE_URL` | `BUYER_OSD_PATH`（`:ticker` 付きの endpoints が拒否されたときに列挙する実パス。カンマ区切り可。今の価格表にはパラメータ付きのルートが無いので使わない） |
 | `npm run plan:register -- --try-sdk-expiry` | `NVM_API_KEY_SELLER`、`NVM_RECEIVER_ADDRESS`（Sandbox のみ） | |
 | `npm run plan:order` | `NVM_API_KEY_BUYER`、`NVM_PLAN_ID` | |
@@ -132,7 +132,7 @@ cp .env.example .env
 
    出力された鍵を `.env` にだけ書き、表示されたアドレスに Solana devnet の USDC を入れる。公開アドレスは `docs/wallet.md` に追記されるので、コミットする（実証2の除外リスト用）。起動後に `/healthz` の `gatewayWallet` と一致することを確かめる。EVM（Base）も使うなら `npm run wallet:new -- --evm`
 2. **ログの保存先を用意する。**
-   1. Vercel の Storage > Blob でストアを作り、読み書きトークンを `BLOB_READ_WRITE_TOKEN` に入れる
+   1. Vercel の Storage > Blob でストアを作り、プロジェクトにつなぐ（`BLOB_STORE_ID` が自動で入る。ローカルで Blob に直接書くときだけ `BLOB_READ_WRITE_TOKEN` を使う）
    2. 次のコマンドで実証2用の読み取りトークンを作り、ゲートウェイの `LOG_READ_TOKEN` と実証2の両方に設定する
 
       ```bash

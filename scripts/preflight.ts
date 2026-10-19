@@ -29,7 +29,8 @@ const WALLET: Check = {
   why: 'npm run wallet:new で作った Solana の秘密鍵（UPSTREAM_MAINNET_PURCHASE=true なら mainnet USDC を入金済み）',
   validate: (v) => (/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(v) ? undefined : 'base58 の 64 バイト秘密鍵に見えない'),
 };
-const BLOB: Check = { name: 'BLOB_READ_WRITE_TOKEN', why: 'Vercel Blob のストアの読み書きトークン（ログの保存先）' };
+// Vercel 上は BLOB_STORE_ID ＋ OIDC で認証するので、BLOB_STORE_ID があれば読み書きトークンは任意
+const BLOB: Check = { name: 'BLOB_READ_WRITE_TOKEN', why: 'Vercel Blob のストアの読み書きトークン（ログの保存先。BLOB_STORE_ID があれば不要）', optional: !!process.env.BLOB_STORE_ID };
 const SALT: Check = { name: 'LOG_SALT', why: 'ログのトークン ID 匿名化の塩（任意のランダム文字列）' };
 const PUBLIC_URL: Check = { name: 'PUBLIC_BASE_URL', why: 'ゲートウェイの公開 URL（エージェント登録・payg 試験で使う）', validate: url };
 const JIN: Check = { name: 'UPSTREAM_JIN_URL', why: 'JIN の URL', validate: url };
@@ -49,7 +50,7 @@ export const COMMANDS: Record<string, { what: string; checks: Check[] }> = {
       BUYER,
       PLAN,
       AGENT,
-      { ...BLOB, why: 'Vercel Blob の読み書きトークン（buyer:resume で使う）' },
+      { ...BLOB, why: 'Vercel Blob の読み書きトークン（buyer:resume で使うときだけ）', optional: true },
       { name: 'LOG_READ_TOKEN', why: 'GET /logs/:date の Bearer（Sandbox での確認と週次レポートで使う）', validate: (v) => (v.length >= 32 ? undefined : '32 文字未満') },
       { name: 'CRON_SECRET', why: 'Vercel Cron の Bearer（買い手の1回分を手動で起動するときに使う）', validate: (v) => (v.length >= 16 ? undefined : '16 文字未満') },
       JIN,

@@ -29,13 +29,14 @@ import { ensureDelegation, type CardProvider } from '../buyer/delegation.ts';
 
 /** デプロイ先（Vercel）に必要な環境変数。名前だけを /healthz に出す */
 export const REMOTE_REQUIRED = {
-  gateway: ['NVM_API_KEY_SELLER', 'NVM_PLAN_ID', 'NVM_AGENT_ID', 'UPSTREAM_JIN_URL', 'UPSTREAM_OSD_URL', 'GATEWAY_WALLET_SECRET', 'BLOB_READ_WRITE_TOKEN', 'LOG_SALT', 'PUBLIC_BASE_URL'],
+  gateway: ['NVM_API_KEY_SELLER', 'NVM_PLAN_ID', 'NVM_AGENT_ID', 'UPSTREAM_JIN_URL', 'UPSTREAM_OSD_URL', 'GATEWAY_WALLET_SECRET', 'BLOB_STORE_ID', 'LOG_SALT', 'PUBLIC_BASE_URL'],
   buyerCron: ['NVM_API_KEY_BUYER', 'CRON_SECRET'],
   logRead: ['LOG_READ_TOKEN'],
 } as const;
 
-const missing = (names: readonly string[]) =>
-  names.filter((n) => !process.env[n] && !(n === 'GATEWAY_WALLET_SECRET' && process.env.GATEWAY_EVM_PRIVATE_KEY));
+// 代わりの値があれば足りているとみなす（EVM の鍵、Blob の読み書きトークン）
+const ALTERNATIVES: Record<string, string> = { GATEWAY_WALLET_SECRET: 'GATEWAY_EVM_PRIVATE_KEY', BLOB_STORE_ID: 'BLOB_READ_WRITE_TOKEN' };
+const missing = (names: readonly string[]) => names.filter((n) => !process.env[n] && !(ALTERNATIVES[n] && process.env[ALTERNATIVES[n]]));
 
 function bearerMatches(header: string | undefined, secret: string | undefined): boolean {
   if (!secret || secret.length < 16) return false;
@@ -91,9 +92,9 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
   }
 
   // ログの保存先：既定は Vercel Blob。ローカルファイルは開発時だけ（NODE_ENV=development かつ LOG_SINK=file）
-  const store: LogStore = cfg.logSink === 'blob' ? new VercelBlobLogStore({ token: cfg.blobReadWriteToken! }) : new FileLogStore(cfg.logDir);
+  const store: LogStore = cfg.logSink === 'blob' ? new VercelBlobLogStore({ token: cfg.blobReadWriteToken }) : new FileLogStore(cfg.logDir);
   const buyerStore: LogStore =
-    cfg.logSink === 'blob' ? new VercelBlobLogStore({ token: cfg.blobReadWriteToken!, prefix: 'log/buyer/' }) : new FileLogStore(`${cfg.logDir}/buyer`);
+    cfg.logSink === 'blob' ? new VercelBlobLogStore({ token: cfg.blobReadWriteToken, prefix: 'log/buyer/' }) : new FileLogStore(`${cfg.logDir}/buyer`);
   const log = new GatewayLogWriter(store);
   // Vercel では応答のあと関数が止まりうるので、ログの書き込みが終わるまで延ばす
   if (process.env.VERCEL) log.onPending = (p) => waitUntil(p);
@@ -177,7 +178,7 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
       const webhook = process.env.NOTIFY_WEBHOOK_URL;
       const r = await runBuyerCron({
         store: buyerStore,
-        state: new BlobStateStore(cfg.blobReadWriteToken!),
+        state: new BlobStateStore(cfg.blobReadWriteToken),
         mintToken: async () => {
           const delegation = await ensureDelegation(payments.delegation, { provider, limitCents: delegationLimitCents(), durationSecs: 30 * 86_400 });
           const { accessToken } = await payments.x402.getX402AccessToken(cfg.planId, cfg.agentId, {
