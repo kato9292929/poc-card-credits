@@ -195,9 +195,16 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     try {
       const payments = buyerPayments();
       const before = await payments.plans.getPlanBalance(cfg.planId);
-      const { result } = await payments.plans.orderFiatPlan(cfg.planId);
-      await buyerEvent({ event: 'checkout_created', stripeCheckoutSessionId: result.stripeCheckoutSessionId, startBalance: String(before.balance) });
-      res.json({ checkoutLink: result.checkoutLink, startBalance: String(before.balance) });
+      const raw: any = await payments.plans.orderFiatPlan(cfg.planId);
+      // 戻り値の形が SDK の型（{ result: { checkoutLink, ... } }）と違うことがあるので、URL を探して返す
+      const r = raw?.result ?? raw;
+      const link: string | undefined = r?.checkoutLink ?? r?.url ?? r?.checkoutUrl;
+      if (!link) {
+        const shape = Object.fromEntries(Object.entries(r ?? {}).map(([k, v]) => [k, typeof v === 'string' && /^https?:/.test(v) ? v : typeof v]));
+        return void res.status(502).json({ error: 'no_checkout_link', shape });
+      }
+      await buyerEvent({ event: 'checkout_created', stripeCheckoutSessionId: r.stripeCheckoutSessionId ?? r.sessionId, startBalance: String(before.balance) });
+      res.json({ checkoutLink: link, startBalance: String(before.balance) });
     } catch (e) {
       res.status(500).json({ error: 'checkout_failed', reason: (e as Error).message });
     }
