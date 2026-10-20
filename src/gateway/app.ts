@@ -178,6 +178,43 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
   // 実証2用：GET /logs/:date（Bearer LOG_READ_TOKEN、読み取り専用）。週次レポート用に GET /logs/buyer/:date も
   app.use(logRoutes(store, cfg.logReadToken, buyerStore));
 
+  // §3-1 の購入（買い手の API キーは Vercel にだけある）：Bearer $CRON_SECRET のときだけ、買い手として
+  // Stripe Checkout のリンクを作る（checkout）／プランの残高を返す（balance）。時刻は log/buyer/ に残し、
+  // 「購入から利用開始までの時間」（§5）の起点と終点にする
+  const buyerPayments = () => {
+    const key = process.env.NVM_API_KEY_BUYER!;
+    return Payments.getInstance({ nvmApiKey: key, environment: nvmEnvironment(key) });
+  };
+  const buyerEvent = (e: object) => {
+    const t = new Date();
+    return buyerStore.append(jstDay(t), JSON.stringify({ ts: t.toISOString(), date_jst: jstDay(t), planId: cfg.planId, ...e }));
+  };
+  app.post('/buyer/checkout', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    if (missing(REMOTE_REQUIRED.buyerCron).length) return void res.status(503).json({ error: 'buyer_not_configured' });
+    try {
+      const payments = buyerPayments();
+      const before = await payments.plans.getPlanBalance(cfg.planId);
+      const { result } = await payments.plans.orderFiatPlan(cfg.planId);
+      await buyerEvent({ event: 'checkout_created', stripeCheckoutSessionId: result.stripeCheckoutSessionId, startBalance: String(before.balance) });
+      res.json({ checkoutLink: result.checkoutLink, startBalance: String(before.balance) });
+    } catch (e) {
+      res.status(500).json({ error: 'checkout_failed', reason: (e as Error).message });
+    }
+  });
+  app.get('/buyer/balance', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    if (missing(REMOTE_REQUIRED.buyerCron).length) return void res.status(503).json({ error: 'buyer_not_configured' });
+    try {
+      const b = await buyerPayments().plans.getPlanBalance(cfg.planId);
+      // 残高が初めて付いたことの記録は呼び出し側が ?record=credits_available で頼む（ポーリングのたびに行を増やさない）
+      if (req.query.record === 'credits_available') await buyerEvent({ event: 'credits_available', balance: String(b.balance) });
+      res.json({ balance: String(b.balance), isSubscriber: (b as any).isSubscriber });
+    } catch (e) {
+      res.status(500).json({ error: 'balance_failed', reason: (e as Error).message });
+    }
+  });
+
   // 買い手エージェント（Vercel Cron）：Authorization: Bearer $CRON_SECRET のときだけ1回分を実行する
   app.get('/cron/buyer', async (req, res) => {
     if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
