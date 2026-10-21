@@ -1,4 +1,4 @@
-import { get, list, put, BlobPreconditionFailedError } from '@vercel/blob';
+import { get, head, list, put, BlobNotFoundError, BlobPreconditionFailedError } from '@vercel/blob';
 import { logPath, type LogStore } from './types.ts';
 
 /**
@@ -15,6 +15,7 @@ import { logPath, type LogStore } from './types.ts';
  */
 export interface BlobApi {
   get: typeof get;
+  head: typeof head;
   put: typeof put;
   list: typeof list;
 }
@@ -29,13 +30,39 @@ export class VercelBlobLogStore implements LogStore {
   }
 
   private get api(): BlobApi {
-    return this.opts.api ?? { get, put, list };
+    return this.opts.api ?? { get, head, put, list };
   }
 
+  /**
+   * 中身と、書き戻しの条件（ifMatch）に使う ETag を読む。
+   * get の ETag は配信側（CDN）の値で、put の ifMatch が照合する値と一致しないことがある（Sandbox で
+   * "Precondition failed: ETag mismatch" が再試行しても続いた）。そこで ETag は head（API）から取り、
+   * get の前後で head が同じ ETag を返し、かつ読んだ中身の大きさが head の size と一致するときだけ使う
+   * （追記のみなので、古い中身を読めば必ず小さい）。合わなければ読み直す。
+   */
   private async load(day: string): Promise<{ text: string; etag?: string } | null> {
-    const r = await this.api.get(logPath(day, this.prefix), { access: 'private', useCache: false, token: this.opts.token });
-    if (!r || r.statusCode !== 200) return null;
-    return { text: await new Response(r.stream).text(), etag: r.blob.etag };
+    const path = logPath(day, this.prefix);
+    const headOf = async () => {
+      try {
+        return await this.api.head(path, { token: this.opts.token });
+      } catch (e) {
+        if (e instanceof BlobNotFoundError) return null;
+        throw e;
+      }
+    };
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const before = await headOf();
+      if (!before) return null;
+      const r = await this.api.get(path, { access: 'private', useCache: false, token: this.opts.token });
+      if (!r || r.statusCode !== 200) continue;
+      const bytes = new Uint8Array(await new Response(r.stream).arrayBuffer());
+      const after = await headOf();
+      if (after && after.etag === before.etag && bytes.byteLength === after.size) {
+        return { text: new TextDecoder().decode(bytes), etag: after.etag };
+      }
+      await new Promise((res) => setTimeout(res, 100 * 2 ** attempt));
+    }
+    throw new Error(`could not read a consistent snapshot of ${path}`);
   }
 
   async read(day: string): Promise<string | null> {
