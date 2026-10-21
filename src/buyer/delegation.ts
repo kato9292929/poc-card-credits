@@ -28,12 +28,13 @@ export async function ensureDelegation(
   opts: { provider: CardProvider; limitCents: number; durationSecs: number; now?: () => Date },
 ): Promise<DelegationResult> {
   const now = opts.now ?? (() => new Date());
-  const list = await api.listDelegations({ accessible: true, provider: opts.provider });
+  // App で登録したカード（vgs）で作った委任も、同じ決済事業者で使えるので再利用の対象にする
+  const list = await api.listDelegations({ accessible: true });
   const usable = list.delegations
     .filter(
       (d) =>
         d.status === 'Active' &&
-        d.provider === opts.provider &&
+        (d.provider === opts.provider || d.provider === 'vgs') &&
         String(d.currency).toLowerCase() === 'usd' &&
         Number(d.spendingLimitCents) <= opts.limitCents &&
         Number(d.remainingBudgetCents) > 0 &&
@@ -53,8 +54,9 @@ export async function ensureDelegation(
     (await api.listPaymentMethods()).find((m) => m.provider === 'vgs' && m.type === 'card' && active(m));
   if (!card) throw new Error(`買い手に ${opts.provider} で使えるカードが登録されていない（Nevermined App の Buying → Payment Methods でカードを登録する）`);
   const calledAt = now().toISOString();
+  // provider はカードを登録した経路に合わせる（vgs のカードに stripe を指定すると 400 "Requested provider does not match"）
   const r = await api.createDelegation({
-    provider: opts.provider,
+    provider: card.provider as CardProvider,
     providerPaymentMethodId: card.id,
     spendingLimitCents: opts.limitCents,
     durationSecs: opts.durationSecs,

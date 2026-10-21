@@ -93,7 +93,7 @@ test('falls back to a card enrolled in the App (provider vgs) when no stripe car
   ]);
   const r = await ensureDelegation(api, opts);
   assert.equal(created[0].providerPaymentMethodId, 'vgs_tok_1');
-  assert.equal(created[0].provider, 'stripe');
+  assert.equal(created[0].provider, 'vgs');
   assert.equal(r.cardProvider, 'vgs');
 });
 
