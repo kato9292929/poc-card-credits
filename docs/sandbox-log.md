@@ -21,8 +21,8 @@
 | 3 | 1コールの通し（JIN series → 上流の tx 署名と `creditsConsumed: 1`、Blob に1行、`GET /logs/:date` で同じ行） | 2026-10-21 | OK | 18:08:53 JST。下の「詳細 §3-3」。それ以前の3回はログの書き込みに失敗（同） |
 | 4 | 非消費の確認（上流を止めて1回 → クレジットが減らない） | 2026-10-21 | OK（OSD の実障害で発生） | 18:08:17 JST、OSD が 503 → 支払いなし・`creditsConsumed: 0`・残高 97 のまま。こちらで止めたのではなく、OSD 側が落ちていた（同時刻に支払いなしの GET も 503）。下の「詳細 §3-4」 |
 | 5 | 上限の確認（環境変数で上限を $0.001 → 署名前に拒否。確認後に戻す） | 2026-10-21 | OK | `config/sandbox.json` の `MAX_USD_PER_CALL` を `0.001` にしてデプロイ（`fd2e13b`）→ JIN series が `gateway_cap_exceeded`（上流の 402 を見て署名前に拒否、tx なし、消費 0、残高 96 のまま）→ 空に戻した。下の「詳細 §3-5」 |
-| 6 | payg 試験（`npm run payg:probe` を1回 → docs/nevermined.md の記録表） | | 未実施 | |
-| 7 | `endpoints` の形を docs/nevermined.md の「使っている API」に書き、「未確認」から外す | | 未実施 | |
+| 6 | payg 試験（`npm run payg:probe` を1回 → docs/nevermined.md の記録表） | 2026-10-21 | 実施（プラン登録で拒否） | `payg:probe -- --remote`（買い手のキーが Vercel にしか無いため、ゲートウェイの `POST /buyer/payg-probe` で実行）。$0.01 のカード払い都度払いプランは `BCK.PROTOCOL.0047`（法定通貨プランの最低額 $1）で登録できず、請求の試験までは進まなかった |
+| 7 | `endpoints` の形を docs/nevermined.md の「使っている API」に書き、「未確認」から外す | 2026-10-21 | 済 | 実 URL 2 本のまま登録できたことを「使っている API」に記録。パスパラメータ（`:ticker`）の可否は、パラメータ付きのルートを使わないので未確認のまま残した |
 
 ## 1週間の確認（§4）
 

@@ -119,6 +119,7 @@ SDK 1.13.0 では、どのスキームでもトークン発行に `delegationCon
 
 | 実施日時（UTC） | outcome | billingModel | 委任への新しい請求 | 委任の累計（¢） | 請求の参照 | エラー・備考 |
 |---|---|---|---|---|---|---|
+| 2026-10-21T09:16:31.604Z | plan_rejected | - | なし | - | - | Bad Request - {"uuid":"e-5a836bc7-f9ec-4767-89bd-5d1955eba9e4","code":"BCK.PROTOCOL.0047","httpStatus":400,"message":"Fiat plan price is below the minimum allowed ($1.00). Lower prices do not cover the payment-processor fixed fee.","hint":"Raise the plan price to at least $1.00. Lower prices do not  |
 <!-- payg-probe-results -->
 
 未実施（2026-10-14 時点）。実施には次の3つが必要。
@@ -145,13 +146,14 @@ SDK 1.13.0 では、どのスキームでもトークン発行に `delegationCon
 
 ## 未確認・要問い合わせ
 
-- [ ] payg の Sandbox 試験（上の記録表）
+- [x] payg の Sandbox 試験（上の記録表）→ 2026-10-21、$0.01 のカード払い都度払いプランは登録の段階で `BCK.PROTOCOL.0047`（法定通貨プランの最低額 $1）で拒否。カードへの請求までは進まない
 - [x] Nevermined App で「クレジット制＋有効期限 30 日」のプランを作れるか → App には期限の欄が無かった。SDK の `registerPlan` に `durationSecs` を渡すと受け付けられた（上の「プランの有効期限」）
-- [ ] SDK で作った期限付きプランを Stripe Checkout で買えるか、30 日後に残高が失効するか（§3-1 で確認）
+- [x] SDK で作った期限付きプランを買えるか → 2026-10-21、App の購入ページ（`/checkout/plan/<planId>`）でテストカードで買え、100 クレジットが付いた（docs/sandbox-log.md §3-1）
+- [ ] 30 日後に残高が失効するか（購入 2026-10-21。2026-11-20 以降に `getPlanBalance` で確かめる）
 - [ ] 自動トップアップを無効にできるか
 - [ ] 委任なしで、プリペイドのクレジットだけを使うトークンを発行できるか
 - [ ] Stripe Checkout 経由でも、Visa 経由と同じ制限（発行国・法人カード）が当てはまるか
-- [ ] 日本の Stripe アカウントで Stripe Connect が使えるか
-- [ ] sandbox の Stripe Checkout で使えるテストカード（Stripe 標準の `4242…` で動くか）
+- [x] 日本の Stripe アカウントで Stripe Connect が使えるか → Sandbox では使えた（売り手のアカウントの本人確認は Stripe のテスト用の Simulate で通過、2026-10-19）
+- [x] sandbox の Stripe Checkout で使えるテストカード → 購入ページは Stripe 標準の `4242 4242 4242 4242` で通った。ただし委任に使う「保存済みカード」（Buying → Payment Methods）は VGS でトークン化され、`4242…` は「Card not enrolled」。そちらは App の「test cards」に出る番号で登録する（登録後は `provider: 'vgs'`）
 - [ ] カード決済の領収書・請求書の形式（Stripe のレシートか、Nevermined の発行か）
-- [ ] エージェント登録の `endpoints` で `:ticker` のようなパスパラメータが受け付けられるか。登録できた形を確かめたら、この項目を外し、「使っている API」の表に書く
+- [ ] エージェント登録の `endpoints` で `:ticker` のようなパスパラメータが受け付けられるか（今の価格表にはパラメータ付きのルートが無いので未確認のまま。登録した形は「使っている API」の表に記録済み）
