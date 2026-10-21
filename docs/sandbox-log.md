@@ -16,10 +16,10 @@
 
 | # | 項目 | 実施日 | 結果 | 記録 |
 |---|---|---|---|---|
-| 1 | 購入と委任（Checkout をテストカードで支払い → クレジット付与までの時間。`buyer:token` で委任作成〜トークン発行、`log/events.jsonl` に2つの時刻） | | 未実施 | |
+| 1 | 購入と委任（Checkout をテストカードで支払い → クレジット付与までの時間。`buyer:token` で委任作成〜トークン発行、`log/events.jsonl` に2つの時刻） | 2026-10-21 | OK（付与までの時間は未計測） | 下の「詳細 §3-1」。購入は App の購入ページ（`/checkout/plan/<planId>`）から。委任は Vercel の `/cron/buyer` で作成（`log/buyer/` に `delegation_created` 18:01:37 JST） |
 | 2 | 402 の確認（トークンなしで JIN → `PAYMENT-REQUIRED` の `scheme` が `nvm:card-delegation`、`network` が `stripe`） | 2026-10-20 | OK | 下の「詳細 §3-2」。1 の前に実施（1 に依存しないため） |
-| 3 | 1コールの通し（JIN series → 上流の tx 署名と `creditsConsumed: 1`、Blob に1行、`GET /logs/:date` で同じ行） | | 未実施 | |
-| 4 | 非消費の確認（上流を止めて1回 → クレジットが減らない） | | 未実施 | |
+| 3 | 1コールの通し（JIN series → 上流の tx 署名と `creditsConsumed: 1`、Blob に1行、`GET /logs/:date` で同じ行） | 2026-10-21 | OK | 18:08:53 JST。下の「詳細 §3-3」。それ以前の3回はログの書き込みに失敗（同） |
+| 4 | 非消費の確認（上流を止めて1回 → クレジットが減らない） | 2026-10-21 | OK（OSD の実障害で発生） | 18:08:17 JST、OSD が 503 → 支払いなし・`creditsConsumed: 0`・残高 97 のまま。こちらで止めたのではなく、OSD 側が落ちていた（同時刻に支払いなしの GET も 503）。下の「詳細 §3-4」 |
 | 5 | 上限の確認（環境変数で上限を $0.001 → 署名前に拒否。確認後に戻す） | | 未実施 | |
 | 6 | payg 試験（`npm run payg:probe` を1回 → docs/nevermined.md の記録表） | | 未実施 | |
 | 7 | `endpoints` の形を docs/nevermined.md の「使っている API」に書き、「未確認」から外す | | 未実施 | |
@@ -57,3 +57,39 @@
 ### Vercel Blob の認証（2026-10-20）
 
 Blob ストアをプロジェクトにつなぐと、`BLOB_READ_WRITE_TOKEN` ではなく `BLOB_STORE_ID` が入った。`@vercel/blob` はこのとき、リクエストのヘッダーで渡される OIDC トークンで認証するため、起動時（リクエストの外）の読み込みは失敗した。Blob の読み書きをリクエストの中だけで行うように直した（`96cd3bc`）。
+
+### §3-1 購入と委任（2026-10-21）
+
+- 買い手アカウントは売り手とは別（Nevermined 上の保有アドレス `0x0F8e27177b9F929Eb819299ED1ACC7c624Cf1647`）。購入は Nevermined App の購入ページ（`https://nevermined.app/checkout/plan/<planId>`、Stripe のテストカード）。完了画面「Payment of $1.00 received … 100 credits have been added」
+- SDK の `orderFiatPlan` は Checkout の URL ではなく、App に埋め込む Stripe の PaymentIntent を返す（`sessionType: 'embedded'`）。そのため買い手に渡すリンクは App の購入ページになる
+- **購入から付与までの時間は測れていない。** 最初の Vercel の `NVM_API_KEY_BUYER` が売り手と同じアカウントのキーで、残高を見張っていたのは売り手側だった。`credits_available`（17:49:13 JST）はキーを直して初めて残高 100 を見た時刻で、付与の時刻ではない
+- 委任には買い手アカウントに**保存済みのカード**が要る（購入時のカードは保存されない）。App の Buying → Payment Methods → Add payment method で登録したカードは `provider: 'vgs'`（VGS の金庫でトークン化）。Stripe のテストカード `4242…` は VGS では「Card not enrolled」になり、App の「test cards」の番号で登録できた。委任は `provider: 'vgs'` で作る必要がある（`stripe` を指定すると 400 "Requested provider does not match the stored payment method"）。トークンの `network` は `stripe` のまま使えた
+- 委任: `delegation_created` 2026-10-21T09:01:37.533Z（上限 100¢）。トークンは同じ `/cron/buyer` の中で発行し、そのまま 1 コール目に使った
+
+### §3-3 1コールの通し（2026-10-21）
+
+`GET /logs/2026-10-21`（Bearer `LOG_READ_TOKEN`）で読んだ行：
+
+```json
+{"time_utc":"2026-10-21T09:08:53.907Z","date_jst":"2026-10-21","tokenId":"e4ce7a9f228e20cd","planKind":"prepaid","verify":"valid","settle":"ok","upstreamTx":"2CVfKwzA5HdF7ZzeGzzU94f7YAwyZdRAKvUMtCe12E43STdkqY9gUXe1h9qstsNPaJMwJQpVeVM8Bs4pL26MwyVz","upstreamNetworkMode":"mainnet","method":"GET","path":"/api/jin/series","outcome":"ok","status":200,"creditsConsumed":1,"upstreamCostMicro":"10000","latencyMs":4372,"routeId":"jin.series","payerId":"d0c6c75243d07e82","remainingCredits":"96","upstreamAttemptMicro":"10000","upstreamNetwork":"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp","upstreamStatus":200,"upstreamLatencyMs":1115,"nvmSettleTx":"tid-03f5855f-fe87-44f5-b7d1-29c2d9667fb3"}
+```
+
+`upstreamTx` は Solana mainnet 上でゲートウェイのウォレット（`3HG2HY…krcgV`）の取引として確認できた。買い手の残高 97 → 96。
+
+**ログに残らなかった3回（要注意）**: 次の3回は上流への支払い・クレジットの消費とも正常だったが、ゲートウェイのログの行を Blob に書けなかった（"Precondition failed: ETag mismatch"。`get` の ETag が CDN の値で、`put` の `ifMatch` と一致しなかった。`d6f036e` で修正）。証拠は買い手側のログ（`log/buyer/2026-10-21.jsonl`）とオンチェーンの取引：
+
+| 時刻（UTC） | パス | 上流の tx | 買い手の残高 |
+|---|---|---|---|
+| 09:01:43 | `/api/jin/series` | `2CqaHAyMZWnk6moEvxARAL5D65a9NHJ8ntf2bdVja9UDJFrui5gqEVLxcPXUMpBHSKdjU4KZ1XyPkay92bG68U31` | 99 |
+| 09:04:29 | `/api/alpha/jp/catalysts` | `2TJUF7G3axUPPumUzWRSKhcWnBxwqCBbGRbsPnotgRrA5mP23uXsFRCM3YrJZconZagEQjDwmn6C5z7Saihqsncy` | 98 |
+| 09:06:49 | `/api/jin/series` | `5TcQZc9Br5SbCzXxLXnKAa275AaT1Py9cjQGqruYB8ePVTWQ5Q83Tyxbn87fWijKGc19qpJ1eNd2acKvWRkQg3bd` | 97 |
+
+ログは追記のみなので、後から行を足して埋めることはしない。この3回分（$0.03）は当日の日次上限の集計（ログから復元）にも入っていない。週次レポートでは、この3回を上の表から別に数える。
+
+### §3-4 非消費の確認（2026-10-21）
+
+```json
+{"time_utc":"2026-10-21T09:08:17.952Z","verify":"valid","settle":"skipped","upstreamTx":"none","path":"/api/alpha/jp/catalysts","outcome":"upstream_failed","status":502,"creditsConsumed":0,"upstreamCostMicro":"0","upstreamAttemptMicro":"0","upstreamStatus":503,"remainingCredits":"97","error":"upstream status 503"}
+```
+
+（主要項目のみ抜粋。）OSD 側の障害（支払いなしの GET も 503）で起きた。支払いの署名前に上流が 503 を返したので USDC は動かず（0.97 のまま）、買い手の残高も 97 のまま。指示書の手順（上流をこちらで止める）とは違う起こり方なので、§4 の期間中に一度、`UPSTREAM_JIN_URL` を誤らせる方法でも確かめる（docs/go-live.md の条件1）。
