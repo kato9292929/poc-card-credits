@@ -166,6 +166,7 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
       blockCardTopUp: cfg.blockCardTopUp,
       logSink: cfg.logSink,
       logWriteFailures: log.failures,
+      lastLogWriteError: log.lastError,
       logReadEndpoint: !!cfg.logReadToken,
       buyerCron: missing(REMOTE_REQUIRED.buyerCron).length === 0,
       missing: { buyerCron: missing(REMOTE_REQUIRED.buyerCron), logRead: missing(REMOTE_REQUIRED.logRead) },

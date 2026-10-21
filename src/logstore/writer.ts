@@ -10,6 +10,8 @@ import type { LogStore } from './types.ts';
 export class GatewayLogWriter {
   private pending = new Set<Promise<void>>();
   failures = 0;
+  /** 最後の書き込み失敗の理由（/healthz に出す。メッセージだけで、行の中身は含めない） */
+  lastError?: { at: string; message: string };
 
   /** 書き込み中の Promise を渡す先（Vercel では waitUntil。応答後も書き込みを最後まで続けさせる） */
   onPending?: (p: Promise<void>) => void;
@@ -34,6 +36,7 @@ export class GatewayLogWriter {
       .append(entry.date_jst, line)
       .catch((e) => {
         this.failures++;
+        this.lastError = { at: new Date().toISOString(), message: String((e as Error)?.message ?? e).slice(0, 300) };
         this.onError(e, line);
       })
       .finally(() => this.pending.delete(p));
