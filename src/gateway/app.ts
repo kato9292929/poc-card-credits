@@ -26,6 +26,7 @@ import { microToUsd } from '../money.ts';
 import { runBuyerCron } from '../buyer/cron.ts';
 import { BlobStateStore } from '../buyer/state.ts';
 import { ensureDelegation, type CardProvider } from '../buyer/delegation.ts';
+import { runPaygProbe } from '../buyer/payg-probe.ts';
 
 /** デプロイ先（Vercel）に必要な環境変数。名前だけを /healthz に出す */
 export const REMOTE_REQUIRED = {
@@ -221,6 +222,26 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     } catch (e) {
       res.status(500).json({ error: 'balance_failed', reason: (e as Error).message });
     }
+  });
+
+  // §3-6 の payg 試験（1回だけ）。買い手のキーが Vercel にしか無いので、ここで動かして結果を返す（記録は scripts/payg-probe.ts --remote）
+  app.post('/buyer/payg-probe', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    if (missing(REMOTE_REQUIRED.buyerCron).length) return void res.status(503).json({ error: 'buyer_not_configured' });
+    if (cfg.nvmEnvironment !== 'sandbox') return void res.status(403).json({ error: 'sandbox_only' });
+    const receiver = process.env.NVM_RECEIVER_ADDRESS;
+    if (!receiver?.startsWith('0x')) return void res.status(503).json({ error: 'missing NVM_RECEIVER_ADDRESS' });
+    const r = await runPaygProbe({
+      sellerKey: cfg.nvmApiKey,
+      buyerKey: process.env.NVM_API_KEY_BUYER!,
+      agentId: cfg.agentId,
+      receiver: receiver as `0x${string}`,
+      publicBaseUrl: cfg.publicBaseUrl,
+      planIdPayg: process.env.NVM_PLAN_ID_PAYG || undefined,
+      provider: (process.env.BUYER_CARD_PROVIDER ?? 'stripe') as CardProvider,
+    });
+    await buyerEvent({ event: 'payg_probe', ...r });
+    res.json(r);
   });
 
   // 買い手エージェント（Vercel Cron）：Authorization: Bearer $CRON_SECRET のときだけ1回分を実行する
