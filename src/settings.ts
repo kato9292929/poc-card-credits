@@ -20,3 +20,15 @@ export function applySettings(file = SETTINGS_FILE): void {
 }
 
 applySettings();
+
+/**
+ * Nevermined の API キーを、貼り付けで入りがちな違いを吸収して整える。前後の空白・改行、
+ * ゼロ幅文字や BOM、値を囲む引用符を取り除き、日本語入力の全角コロン（：）を半角（:）に直す。キーの中身は変えない
+ */
+export function normalizeNvmKey(v: string): string {
+  return v.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim().replace(/^["'“”‘’](.*)["'“”‘’]$/s, '$1').trim().replace(/^([A-Za-z-]{1,20})\s*[：:]\s*/, '$1:');
+}
+for (const k of ['NVM_API_KEY_SELLER', 'NVM_API_KEY_BUYER'] as const) {
+  const v = process.env[k];
+  if (v) process.env[k] = normalizeNvmKey(v);
+}

@@ -89,7 +89,10 @@ export interface GatewayConfig {
 export function describeKeyPrefix(k: string): string {
   const i = k.indexOf(':');
   const prefix = i > 0 ? k.slice(0, i) : '';
-  return /^[a-z-]{1,20}$/i.test(prefix) ? `prefix "${prefix}:"` : 'has no environment prefix (expected "sandbox:<key>")';
+  if (/^[a-z-]{1,20}$/i.test(prefix)) return `prefix "${prefix}:"`;
+  // 原因を探せるよう、先頭 10 文字の「文字の種類」だけを出す（a=英字 9=数字 その他は U+xxxx。キーの中身は出さない）
+  const shape = [...k.slice(0, 10)].map((c) => (/[A-Za-z]/.test(c) ? 'a' : /\d/.test(c) ? '9' : `U+${c.codePointAt(0)!.toString(16).padStart(4, '0')}`)).join(' ');
+  return `has no environment prefix (expected "sandbox:<key>"; first chars: ${shape}; length ${k.length})`;
 }
 
 export function nvmEnvironment(...keys: (string | undefined)[]): NvmEnvironment {
@@ -103,6 +106,9 @@ export function nvmEnvironment(...keys: (string | undefined)[]): NvmEnvironment 
   for (const k of keys) {
     if (!k) continue;
     const fromKey = getEnvironmentFromApiKey(k);
+    // 新しい App（API version 1.75）は接頭辞の無いキー（JWT だけ）を発行する。その場合は NVM_ENVIRONMENT を使う
+    // （SDK も接頭辞が無ければ environment オプションに従う）。live は上の ALLOW_LIVE の確認で止まる
+    if (fromKey === undefined && !k.includes(':')) continue;
     if (fromKey !== env) {
       throw new Error(`NVM API key ${describeKeyPrefix(k)} does not match NVM_ENVIRONMENT=${env}`);
     }

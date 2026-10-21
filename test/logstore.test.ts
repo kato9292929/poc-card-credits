@@ -135,14 +135,18 @@ test('config: LOG_SINK=file only with NODE_ENV=development; blob needs its token
 test('config: API key prefix must match NVM_ENVIRONMENT; live needs ALLOW_LIVE (moved from percall)', async () => {
   const { loadGatewayConfig, nvmEnvironment } = await import('../src/config.ts');
   assert.throws(() => withEnv({ ...BASE, NVM_API_KEY_SELLER: 'live:k' }, () => loadGatewayConfig()), /does not match/);
-  assert.throws(() => withEnv({ ...BASE, NVM_API_KEY_SELLER: 'k' }, () => loadGatewayConfig()), /does not match/);
+  // 接頭辞の無いキーは NVM_ENVIRONMENT（sandbox）に従う
+  assert.equal(withEnv({ ...BASE, NVM_API_KEY_SELLER: 'k' }, () => loadGatewayConfig()).nvmEnvironment, 'sandbox');
   assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'live' }, () => nvmEnvironment('live:k')), /ALLOW_LIVE/);
   assert.equal(withEnv({ NVM_ENVIRONMENT: 'live', ALLOW_LIVE: 'true' }, () => nvmEnvironment('live:k')), 'live');
   assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment('sandbox:a', 'live:b')), /does not match/);
   // プレフィックスの無いキーでも、エラーにキーの中身を出さない
   const bare = 'eyJhbGciOiJFUzI1NksifQ.secretpayload.signature';
+  // 接頭辞の無いキー（新しい App が発行する JWT だけの形）は NVM_ENVIRONMENT に従う
+  assert.equal(withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment(bare)), 'sandbox');
+  // 認識できない接頭辞でも、エラーにキーの中身を出さない
   assert.throws(
-    () => withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment(bare)),
+    () => withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment(`${bare}:x`)),
     (e: Error) => /no environment prefix/.test(e.message) && !e.message.includes('secretpayload'),
   );
 });
@@ -161,6 +165,14 @@ test('config: UPSTREAM_MAINNET_PURCHASE opens mainnet upstream in Sandbox only, 
   );
   // 従来の UPSTREAM_TESTNET_ONLY=false は今までどおり ALLOW_LIVE が要る
   assert.throws(() => run({ ...BASE, UPSTREAM_TESTNET_ONLY: 'false' }), /ALLOW_LIVE/);
+});
+
+test('normalizeNvmKey absorbs paste artifacts without touching the key', async () => {
+  const { normalizeNvmKey } = await import('../src/settings.ts');
+  for (const v of ['sandbox：eyJabc', ' sandbox:eyJabc\n', '\uFEFFsandbox:eyJabc', '"sandbox:eyJabc"', 'sandbox : eyJabc', 'sandbox:\u200BeyJabc']) {
+    assert.equal(normalizeNvmKey(v), 'sandbox:eyJabc', JSON.stringify(v));
+  }
+  assert.equal(normalizeNvmKey('eyJabc'), 'eyJabc');
 });
 
 const BASE = {
