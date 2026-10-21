@@ -20,7 +20,7 @@
 | 2 | 402 の確認（トークンなしで JIN → `PAYMENT-REQUIRED` の `scheme` が `nvm:card-delegation`、`network` が `stripe`） | 2026-10-20 | OK | 下の「詳細 §3-2」。1 の前に実施（1 に依存しないため） |
 | 3 | 1コールの通し（JIN series → 上流の tx 署名と `creditsConsumed: 1`、Blob に1行、`GET /logs/:date` で同じ行） | 2026-10-21 | OK | 18:08:53 JST。下の「詳細 §3-3」。それ以前の3回はログの書き込みに失敗（同） |
 | 4 | 非消費の確認（上流を止めて1回 → クレジットが減らない） | 2026-10-21 | OK（OSD の実障害で発生） | 18:08:17 JST、OSD が 503 → 支払いなし・`creditsConsumed: 0`・残高 97 のまま。こちらで止めたのではなく、OSD 側が落ちていた（同時刻に支払いなしの GET も 503）。下の「詳細 §3-4」 |
-| 5 | 上限の確認（環境変数で上限を $0.001 → 署名前に拒否。確認後に戻す） | | 未実施 | |
+| 5 | 上限の確認（環境変数で上限を $0.001 → 署名前に拒否。確認後に戻す） | 2026-10-21 | OK | `config/sandbox.json` の `MAX_USD_PER_CALL` を `0.001` にしてデプロイ（`fd2e13b`）→ JIN series が `gateway_cap_exceeded`（上流の 402 を見て署名前に拒否、tx なし、消費 0、残高 96 のまま）→ 空に戻した。下の「詳細 §3-5」 |
 | 6 | payg 試験（`npm run payg:probe` を1回 → docs/nevermined.md の記録表） | | 未実施 | |
 | 7 | `endpoints` の形を docs/nevermined.md の「使っている API」に書き、「未確認」から外す | | 未実施 | |
 
@@ -93,3 +93,11 @@ Blob ストアをプロジェクトにつなぐと、`BLOB_READ_WRITE_TOKEN` で
 ```
 
 （主要項目のみ抜粋。）OSD 側の障害（支払いなしの GET も 503）で起きた。支払いの署名前に上流が 503 を返したので USDC は動かず（0.97 のまま）、買い手の残高も 97 のまま。指示書の手順（上流をこちらで止める）とは違う起こり方なので、§4 の期間中に一度、`UPSTREAM_JIN_URL` を誤らせる方法でも確かめる（docs/go-live.md の条件1）。
+
+### §3-5 上限の確認（2026-10-21）
+
+```json
+{"time_utc":"2026-10-21T09:12:08.325Z","verify":"valid","settle":"skipped","upstreamTx":"none","path":"/api/jin/series","outcome":"gateway_cap_exceeded","status":503,"creditsConsumed":0,"upstreamCostMicro":"0","upstreamAttemptMicro":"0","upstreamStatus":402,"remainingCredits":"96","error":"requested $0.010000 > per-call cap $0.001000"}
+```
+
+（主要項目のみ抜粋。）ゲートウェイのウォレットの最新の取引は §3-3 の `2CVfKw…` のままで、新しい支払いは無かった。確認後に `MAX_USD_PER_CALL` を空（コードの上限 $0.05）に戻した。
