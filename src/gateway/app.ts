@@ -216,7 +216,7 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
       const b = await buyerPayments().plans.getPlanBalance(cfg.planId);
       // 残高が初めて付いたことの記録は呼び出し側が ?record=credits_available で頼む（ポーリングのたびに行を増やさない）
       if (req.query.record === 'credits_available') await buyerEvent({ event: 'credits_available', balance: String(b.balance) });
-      res.json({ balance: String(b.balance), isSubscriber: (b as any).isSubscriber });
+      res.json({ balance: String(b.balance), isSubscriber: (b as any).isSubscriber, holderAddress: (b as any).holderAddress });
     } catch (e) {
       res.status(500).json({ error: 'balance_failed', reason: (e as Error).message });
     }
