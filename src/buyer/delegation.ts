@@ -17,6 +17,8 @@ export interface DelegationResult {
   createdAt: string;
   spendingLimitCents: number;
   provider: CardProvider;
+  /** 委任に使ったカードの登録元。App で登録したカードは 'vgs'（VGS の金庫でトークン化、複数の決済事業者で使える） */
+  cardProvider?: string;
 }
 
 type DelegationApi = Pick<Payments['delegation'], 'listDelegations' | 'listPaymentMethods' | 'createDelegation'>;
@@ -43,9 +45,13 @@ export async function ensureDelegation(
     return { delegationId: d.delegationId, reused: true, createdAt: d.createdAt, spendingLimitCents: Number(d.spendingLimitCents), provider: opts.provider };
   }
 
-  const methods = await api.listPaymentMethods({ provider: opts.provider });
-  const card = methods.find((m) => m.provider === opts.provider && (m.status ?? 'Active') === 'Active');
-  if (!card) throw new Error(`買い手に ${opts.provider} のカードが登録されていない（Nevermined App でカードを登録する）`);
+  // 決済事業者に直接登録したカードを優先する。無ければ、App の「Add payment method」で登録したカード
+  // （provider: 'vgs'。"a card chargeable across payment providers"）を使う
+  const active = (m: { status?: string }) => (m.status ?? 'Active') === 'Active';
+  const card =
+    (await api.listPaymentMethods({ provider: opts.provider })).find((m) => m.provider === opts.provider && active(m)) ??
+    (await api.listPaymentMethods()).find((m) => m.provider === 'vgs' && m.type === 'card' && active(m));
+  if (!card) throw new Error(`買い手に ${opts.provider} で使えるカードが登録されていない（Nevermined App の Buying → Payment Methods でカードを登録する）`);
   const calledAt = now().toISOString();
   const r = await api.createDelegation({
     provider: opts.provider,
@@ -61,5 +67,6 @@ export async function ensureDelegation(
     createdAt: created?.createdAt ?? calledAt,
     spendingLimitCents: opts.limitCents,
     provider: opts.provider,
+    cardProvider: card.provider,
   };
 }

@@ -20,7 +20,7 @@ const d = (patch: Record<string, unknown>) => ({
   ...patch,
 });
 
-function fakeApi(delegations: any[]) {
+function fakeApi(delegations: any[], methods: any[] = [{ id: 'pm_1', provider: 'stripe', status: 'Active', type: 'card', brand: 'visa', last4: '4242' }]) {
   const created: any[] = [];
   return {
     created,
@@ -28,8 +28,8 @@ function fakeApi(delegations: any[]) {
       async listDelegations() {
         return { delegations: [...delegations, ...created.map((c) => d({ delegationId: c.id, spendingLimitCents: String(c.spendingLimitCents), createdAt: '2026-10-16T00:00:01Z' }))], totalResults: 0, page: 1 };
       },
-      async listPaymentMethods() {
-        return [{ id: 'pm_1', provider: 'stripe', status: 'Active', type: 'card', brand: 'visa', last4: '4242' }];
+      async listPaymentMethods(f?: { provider?: string }) {
+        return methods.filter((m) => !f?.provider || m.provider === f.provider);
       },
       async createDelegation(p: any) {
         created.push({ id: 'new-1', ...p });
@@ -84,4 +84,20 @@ test('delegation cap is 100¢ and can only be lowered (not below the $0.50 minim
   assert.equal(run('60'), 60);
   assert.throws(() => run('101'), /hard cap/);
   assert.throws(() => run('10'), /minimum/);
+});
+
+test('falls back to a card enrolled in the App (provider vgs) when no stripe card exists', async () => {
+  const { api, created } = fakeApi([], [
+    { id: '0xdF89', provider: 'erc4337', status: 'Active', type: 'crypto_wallet', brand: 'ethereum', last4: 'Cc11' },
+    { id: 'vgs_tok_1', provider: 'vgs', status: 'Active', type: 'card', brand: 'visa', last4: '1387' },
+  ]);
+  const r = await ensureDelegation(api, opts);
+  assert.equal(created[0].providerPaymentMethodId, 'vgs_tok_1');
+  assert.equal(created[0].provider, 'stripe');
+  assert.equal(r.cardProvider, 'vgs');
+});
+
+test('no usable card: clear error', async () => {
+  const { api } = fakeApi([], [{ id: '0xdF89', provider: 'erc4337', status: 'Active', type: 'crypto_wallet', brand: 'ethereum', last4: 'Cc11' }]);
+  await assert.rejects(ensureDelegation(api, opts), /使えるカードが登録されていない/);
 });
