@@ -82,6 +82,16 @@ export interface GatewayConfig {
  * 食い違うと Nevermined は別のバックエンドに届いて分かりにくい 4xx を返す（5-Minute Setup）ので、起動時に止める。
  * プレフィックスの解釈は SDK の getEnvironmentFromApiKey に合わせる。live は ALLOW_LIVE=true のときだけ許可する。
  */
+/**
+ * エラーに出すのはキーのプレフィックスだけ。プレフィックスの無いキー（JWT だけ）で k.split(':')[0] を出すと
+ * キー全体が漏れるので、短い英小文字の接頭辞のときだけ表示する
+ */
+export function describeKeyPrefix(k: string): string {
+  const i = k.indexOf(':');
+  const prefix = i > 0 ? k.slice(0, i) : '';
+  return /^[a-z-]{1,20}$/i.test(prefix) ? `prefix "${prefix}:"` : 'has no environment prefix (expected "sandbox:<key>")';
+}
+
 export function nvmEnvironment(...keys: (string | undefined)[]): NvmEnvironment {
   const env = (process.env.NVM_ENVIRONMENT ?? 'sandbox') as NvmEnvironment;
   if (!['sandbox', 'live', 'staging_sandbox', 'staging_live'].includes(env)) {
@@ -94,7 +104,7 @@ export function nvmEnvironment(...keys: (string | undefined)[]): NvmEnvironment 
     if (!k) continue;
     const fromKey = getEnvironmentFromApiKey(k);
     if (fromKey !== env) {
-      throw new Error(`NVM API key prefix "${k.split(':')[0]}:" does not match NVM_ENVIRONMENT=${env}`);
+      throw new Error(`NVM API key ${describeKeyPrefix(k)} does not match NVM_ENVIRONMENT=${env}`);
     }
   }
   return env;

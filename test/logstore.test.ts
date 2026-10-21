@@ -139,6 +139,12 @@ test('config: API key prefix must match NVM_ENVIRONMENT; live needs ALLOW_LIVE (
   assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'live' }, () => nvmEnvironment('live:k')), /ALLOW_LIVE/);
   assert.equal(withEnv({ NVM_ENVIRONMENT: 'live', ALLOW_LIVE: 'true' }, () => nvmEnvironment('live:k')), 'live');
   assert.throws(() => withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment('sandbox:a', 'live:b')), /does not match/);
+  // プレフィックスの無いキーでも、エラーにキーの中身を出さない
+  const bare = 'eyJhbGciOiJFUzI1NksifQ.secretpayload.signature';
+  assert.throws(
+    () => withEnv({ NVM_ENVIRONMENT: 'sandbox' }, () => nvmEnvironment(bare)),
+    (e: Error) => /no environment prefix/.test(e.message) && !e.message.includes('secretpayload'),
+  );
 });
 
 test('config: UPSTREAM_MAINNET_PURCHASE opens mainnet upstream in Sandbox only, separate from ALLOW_LIVE', async () => {

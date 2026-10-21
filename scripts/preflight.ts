@@ -12,12 +12,13 @@
 import 'dotenv/config';
 import '../src/settings.ts';
 import { getEnvironmentFromApiKey } from '@nevermined-io/payments';
+import { describeKeyPrefix } from '../src/config.ts';
 
 type Check = { name: string; why: string; optional?: boolean; validate?: (v: string) => string | undefined };
 
 const env = process.env.NVM_ENVIRONMENT ?? 'sandbox';
 const nvmKey = (role: string): Check['validate'] => (v) =>
-  getEnvironmentFromApiKey(v) === env ? undefined : `${role}のキーの接頭辞（${v.split(':')[0]}:）が NVM_ENVIRONMENT=${env} と一致しない`;
+  getEnvironmentFromApiKey(v) === env ? undefined : `${role}のキー: ${describeKeyPrefix(v)}（NVM_ENVIRONMENT=${env} と一致しない）`;
 const url: Check['validate'] = (v) => (/^https?:\/\//.test(v) ? undefined : 'URL（http(s)://...）ではない');
 
 const SELLER: Check = { name: 'NVM_API_KEY_SELLER', why: '売り手の Nevermined API キー（sandbox:）', validate: nvmKey('売り手') };
