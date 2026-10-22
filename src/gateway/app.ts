@@ -47,9 +47,33 @@ function bearerMatches(header: string | undefined, secret: string | undefined): 
   return timingSafeEqual(d(m[1]), d(secret));
 }
 
+/**
+ * トップページ（public/index.html）。Vercel では public/ は CDN が配るが、"/" だけはゲートウェイの関数（index）に
+ * 先に割り当てられるので、ここで CDN 上の /index.html を取ってきて返す（取れたものはインスタンスの間だけ覚えておく）
+ */
+function landingRoute(app: express.Express): void {
+  let cached: string | undefined;
+  app.get('/', async (_req, res) => {
+    try {
+      if (!cached) {
+        // 取りに行く先はリクエストの Host ではなく設定の PUBLIC_BASE_URL に固定する（Host を偽ったリクエストで別の中身を覚えさせないため）
+        const base = (process.env.PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
+        if (!base) throw new Error('PUBLIC_BASE_URL is not set');
+        const r = await fetch(`${base}/index.html`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        cached = await r.text();
+      }
+      res.type('html').set('cache-control', 'public, max-age=300').send(cached);
+    } catch {
+      res.redirect(302, '/index.html');
+    }
+  });
+}
+
 export async function createGatewayApp(): Promise<{ app: express.Express; flush: () => Promise<void> }> {
   const app = express();
   app.disable('x-powered-by');
+  landingRoute(app);
   try {
     return await buildApp(app);
   } catch (e) {
@@ -58,6 +82,7 @@ export async function createGatewayApp(): Promise<{ app: express.Express; flush:
     console.error(`[startup] ${reason}`);
     const fallback = express();
     fallback.disable('x-powered-by');
+    landingRoute(fallback);
     fallback.get('/healthz', (_req, res) => void res.status(503).json({ ok: false, reason }));
     fallback.use((_req, res) => void res.status(503).json({ error: 'gateway_not_configured' }));
     return { app: fallback, flush: async () => {} };
