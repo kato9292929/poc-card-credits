@@ -81,5 +81,11 @@
       "path": "/cron/buyer",
       "schedule": "7 19 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/index.html"
+    }
   ]
 }
