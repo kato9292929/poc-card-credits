@@ -2,872 +2,329 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#ececeb">
-<title>Built for Intelligent Agent Payments</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Card Credits Gateway</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<script>
-  document.documentElement.classList.add("entrance-active");
-  window.__entranceFailsafe = setTimeout(() => document.documentElement.classList.remove("entrance-active"), 3200);
-</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quantico:wght@400;700&display=swap">
 <style>
-:root {
-  --paper: #ececeb;
-  --ink: #222222;
-  --copy: #4a4a4a;
-  --glass-line: rgba(255,255,255,.36);
-  --card-ref-w: 429;
-  --card-ref-h: 554;
-  --card-radius: 17;
-  --card-count: 3;
-  --gap: clamp(8px, 1.5vw, 23px);
-  --gutter: clamp(14px, 3.6vw, 54px);
-  --content-max: calc(var(--card-count) * var(--card-ref-w) * 1px + (var(--card-count) - 1) * var(--gap));
-  --pad-top: clamp(20px, 9.6vh, 94px);
-  --pad-bottom: clamp(16px, 3vh, 52px);
-  --masthead-gap: clamp(16px, 3vw, 40px);
-  --cards-offset: clamp(14px, 9.4vh, 92px);
-}
 * { box-sizing: border-box; }
-html, body { margin: 0; min-width: 100%; height: 100%; overflow: hidden; }
 body {
-  color: var(--ink);
-  background: var(--paper);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-optical-sizing: auto;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: geometricPrecision;
-}
-button, a { font: inherit; }
-
-/* ---------- stage ---------- */
-.stage {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  flex-direction: column;
-  height: 100svh;
-  overflow: hidden;
-  padding: var(--pad-top) var(--gutter) var(--pad-bottom);
-  background:
-    linear-gradient(rgba(236,236,234,.10), rgba(236,236,234,.10)),
-    url("https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/5c3ec08f-2dbf-4c0a-8588-f6106a789443.webp") center / cover no-repeat,
-    #ececeb;
-}
-.stage-motion {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  pointer-events: none;
-}
-.stage-motion--narrow { display: none; }
-.paper-texture { position: absolute; z-index: -1; inset: 0; display: none; }
-.filter-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
-
-.masthead, .cards { width: min(100%, var(--content-max)); margin-inline: auto; }
-
-/* ---------- masthead ---------- */
-.masthead {
-  position: relative;
-  z-index: 2;
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, clamp(260px, 32vw, 483px));
-  gap: var(--masthead-gap);
-  align-items: start;
-}
-.headline {
   margin: 0;
-  max-width: 100%;
-  color: #202020;
-  font-size: clamp(24px, min(3.1vw, 5.9vh), 47px);
-  font-weight: 400;
-  letter-spacing: .015em;
-  line-height: 1.223;
+  background: #F2F1F0;
+  font-family: 'Quantico', 'Arial Narrow', sans-serif;
 }
-.headline__line { display: flex; flex-wrap: nowrap; align-items: center; white-space: nowrap; }
-.dot-word {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 4.851em;
-  height: .766em;
-  margin-left: .319em;
-  color: #ad314d;
-  transform: translateY(.085em);
+a { color: #3a3a3a; text-decoration: none; }
+a:hover { color: #000; }
+h1, h2 {
+  margin: 0;
+  color: #2b3033;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.98;
+  font-weight: 700;
 }
-.dot-word .dot-svg { width: 100%; height: 100%; }
-.dot-svg { display: block; overflow: visible; color: inherit; }
+.accent { color: #15BCDF; }
 
-.intro {
-  container-type: inline-size;
-  width: 100%;
-  margin: .34em 0 0;
-  color: var(--copy);
-  font-size: clamp(13px, min(1.36vw, 2.6vh), 20.6px);
-  font-weight: 400;
-  letter-spacing: -.017em;
-  line-height: 1.62;
-}
-.desktop-break { display: none; }
-@container (min-width: 26.5em) { .desktop-break { display: inline; } }
-
-/* ---------- cards row ---------- */
-.cards {
-  flex: 1 1 auto;
-  container-type: size;
-  display: flex;
-  justify-content: space-between;
+/* ---------- buttons ---------- */
+.btn-cta {
+  display: inline-flex;
   align-items: center;
-  gap: var(--gap);
-  min-height: 0;
-  margin-top: var(--cards-offset);
-  --card-w: min(
-    (100cqw - (var(--card-count) - 1) * var(--gap)) / var(--card-count),
-    100cqh * var(--card-ref-w) / var(--card-ref-h),
-    var(--card-ref-w) * 1px
-  );
+  gap: 14px;
+  background: #15BCDF;
+  border: 1px solid #0fa3c2;
+  color: #1a1c1e;
+  text-transform: uppercase;
+  font-family: inherit;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: 18px 34px;
+  font-size: clamp(13px, 2.2vw, 16px);
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+  box-shadow: 0 0 0 1px rgba(21,188,223,0.35), 0 10px 30px -12px rgba(15,163,194,0.6);
+  transition: background .2s ease, box-shadow .2s ease;
+}
+.btn-cta::after { content: ""; display: block; width: 22px; height: 1px; background: #1a1c1e; }
+.btn-cta:hover {
+  background: #3fd0ef;
+  color: #1a1c1e;
+  box-shadow: 0 0 0 1px rgba(21,188,223,0.55), 0 14px 38px -10px rgba(15,163,194,0.85);
 }
 
-.card {
-  container-type: inline-size;
+/* ---------- hero ---------- */
+.hero {
   position: relative;
-  flex: 0 0 auto;
+  min-height: 100svh;
+  background: #F2F1F0;
   overflow: hidden;
-  width: var(--card-w);
-  aspect-ratio: 429 / 554;
-  border: 1px solid var(--glass-line);
-  border-radius: calc(var(--card-w) * 17 / 429);
-  background-origin: border-box;
-  color: #fff;
-  --u: calc(100cqw / 429);
-  box-shadow: 0 2px 4px rgba(50,28,39,.30), inset 0 1px 0 rgba(255,255,255,.24);
 }
-.card::before {
+.hero__video {
+  position: absolute;
+  top: 0;
+  right: -20%;
+  width: 99%;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 0;
+}
+.hero__scrim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 70%;
+  background: linear-gradient(90deg, #F2F1F0 0%, #F2F1F0 55%, rgba(242,241,240,0.85) 78%, rgba(242,241,240,0) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+.nav {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(20px, 5vw, 56px);
+  padding: clamp(20px, 3vw, 38px) clamp(20px, 4vw, 48px) 0;
+}
+.logo { display: flex; align-items: center; gap: 12px; color: #111; }
+.logo:hover { color: #111; }
+.logo__mark {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #111;
+  flex: 0 0 auto;
+}
+.logo__mark::after {
   content: "";
   position: absolute;
-  inset: 0;
-  z-index: 1;
-  mix-blend-mode: screen;
-  pointer-events: none;
-  background:
-    linear-gradient(102deg, rgba(255,255,255,.10), transparent 28%, rgba(255,255,255,.08) 62%, transparent 88%),
-    radial-gradient(ellipse 85% 34% at 54% 7%, rgba(255,255,255,.24), transparent 72%);
-}
-.card__media {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: fill;
-  pointer-events: none;
-}
-.card__grain {
-  position: absolute;
-  z-index: 2;
-  inset: -8%;
-  width: 116%;
-  height: 116%;
-  opacity: .46;
-  mix-blend-mode: soft-light;
-  pointer-events: none;
-}
-
-/* shared type / controls */
-.card__title {
-  position: absolute;
-  z-index: 4;
-  top: 6.1%;
-  left: 5%;
-  width: 90%;
-  margin: 0;
-  color: rgba(255,255,255,.96);
-  font-size: calc(22.95 * var(--u));
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.48;
-  text-align: center;
-  text-shadow: 0 1px 1px rgba(72,28,48,.14);
-}
-.metric {
-  position: absolute;
-  z-index: 5;
-  left: 0;
-  width: 100%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  color: rgba(255,255,255,.97);
-  filter: drop-shadow(0 1px 1px rgba(104,27,54,.08));
-}
-.dot-number { display: block; flex: 0 0 auto; }
-.dot-number .dot-svg { width: 100%; height: auto; }
-.metric__unit {
-  margin-left: 1.3%;
-  font-size: calc(30.46 * var(--u));
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: calc(-.8 * var(--u));
-}
-.caption {
-  position: absolute;
-  z-index: 5;
-  top: 65.1%;
-  left: 10%;
-  width: 80%;
-  margin: 0;
-  color: rgba(255,255,255,.87);
-  font-size: calc(19.95 * var(--u));
-  font-weight: 400;
-  letter-spacing: calc(-.36 * var(--u));
-  line-height: 1.45;
-  text-align: center;
-  text-shadow: 0 1px 2px rgba(60,21,35,.16);
-}
-.learn-more {
-  position: absolute;
-  z-index: 6;
-  top: 83.75%;
+  top: 50%;
   left: 50%;
-  width: calc(111 * var(--u));
-  height: calc(45 * var(--u));
-  transform: translateX(-50%);
-  border: 0;
-  border-radius: 999px;
-  color: #2d2d2d;
-  background: rgba(255,255,255,.97);
-  box-shadow: 0 1px 0 rgba(255,255,255,.50) inset, 0 1px 3px rgba(58,25,39,.08);
-  font-size: calc(14 * var(--u));
+  width: 20px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%) rotate(-25deg);
+}
+.logo__word {
+  font-size: clamp(22px, 5vw, 30px);
   font-weight: 400;
-  letter-spacing: calc(-.25 * var(--u));
-  cursor: pointer;
-  transition: transform .18s ease, box-shadow .18s ease;
+  color: #111;
+  letter-spacing: -0.5px;
+  text-transform: lowercase;
 }
-.learn-more:hover { transform: translateX(-50%) translateY(calc(-2 * var(--u))); box-shadow: 0 8px 20px rgba(58,25,39,.16); }
-.learn-more:focus-visible { outline: 3px solid rgba(255,255,255,.78); outline-offset: 3px; }
-
-/* ---------- card 1: speed ---------- */
-.card--speed {
-  background:
-    radial-gradient(ellipse 34% 24% at 50% 2%, rgba(255,220,211,.10) 0%, transparent 76%),
-    radial-gradient(ellipse 44% 34% at 106% 20%, rgba(255,222,211,.10) 0%, transparent 74%),
-    radial-gradient(ellipse 40% 27% at 50% 82%, rgba(255,214,208,.08) 0%, transparent 74%),
-    radial-gradient(ellipse 43% 31% at -7% 61%, rgba(127,31,53,.06) 0%, transparent 74%),
-    radial-gradient(ellipse 47% 34% at 107% 82%, rgba(119,29,49,.07) 0%, transparent 74%),
-    linear-gradient(180deg, rgba(255,246,241,.43) 0%, rgba(255,237,235,.19) 9%, transparent 22%),
-    radial-gradient(ellipse 44% 34% at 50% 111%, rgba(55,0,20,.16) 0%, transparent 74%),
-    radial-gradient(ellipse 105% 32% at 50% 80%, rgba(255,218,204,.20) 0%, rgba(255,205,196,.10) 48%, transparent 78%),
-    radial-gradient(ellipse 55% 22% at -5% 39%, rgba(240,250,200,.15) 0%, transparent 76%),
-    radial-gradient(ellipse 64% 49% at -8% 106%, rgba(255,222,199,.48) 0%, rgba(255,204,192,.25) 49%, transparent 78%),
-    radial-gradient(ellipse 64% 49% at 108% 106%, rgba(255,222,199,.43) 0%, rgba(255,204,192,.22) 49%, transparent 78%),
-    radial-gradient(ellipse 52% 54% at -8% 44%, rgba(255,216,207,.20) 0%, transparent 77%),
-    radial-gradient(ellipse 68% 45% at -4% -3%, rgba(255,235,232,.73) 0%, rgba(255,226,226,.41) 46%, transparent 77%),
-    radial-gradient(ellipse 70% 45% at 104% -4%, rgba(255,238,233,.78) 0%, rgba(255,226,226,.42) 48%, transparent 78%),
-    radial-gradient(ellipse 93% 47% at 106% 58%, rgba(245,247,241,.73) 0%, rgba(246,231,229,.42) 48%, transparent 76%),
-    radial-gradient(ellipse 74% 40% at -8% 73%, rgba(255,210,190,.48) 0%, rgba(255,194,181,.25) 48%, transparent 77%),
-    radial-gradient(ellipse 77% 36% at 57% 58%, rgba(255,226,218,.30) 0%, rgba(255,206,207,.15) 50%, transparent 78%),
-    radial-gradient(ellipse 54% 30% at 50% 17%, rgba(106,8,51,.22) 0%, transparent 78%),
-    linear-gradient(180deg, #bd4468 0%, #ad355b 38%, #a63b50 72%, #8c1320 100%);
-  background-origin: border-box;
+.nav__links { display: flex; gap: 34px; }
+.nav__links a {
+  font-weight: 700;
+  font-size: clamp(12px, 2.4vw, 15px);
+  letter-spacing: 0.06em;
+  color: #3a3a3a;
+  white-space: nowrap;
 }
-.card--speed::before {
-  background:
-    linear-gradient(103deg, rgba(255,255,255,.08), transparent 31%, rgba(255,255,255,.055) 63%, transparent 88%),
-    radial-gradient(ellipse 92% 19% at 51% 0%, rgba(255,255,255,.08), transparent 78%);
-}
-.card--speed .card__grain { opacity: .54; }
-.card--speed .card__title { top: 6.3%; color: #fff; font-size: calc(22.7 * var(--u)); }
-.gauge {
-  position: absolute;
-  z-index: 2;
-  top: 27.63%;
-  left: 10.5%;
-  width: 79%;
-  height: 59%;
-  overflow: visible;
-  pointer-events: none;
-}
-.tick { stroke: rgba(255,188,210,.34); }
-.metric--speed { top: 48.6%; }
-.metric--speed .dot-number { width: 31.2%; }
-.metric--speed .dot-svg {
-  transform: translate(calc(4 * var(--u)), calc(2 * var(--u))) scale(.925, 1.018);
-  transform-origin: left top;
-}
-.metric--speed .dot-svg circle { fill-opacity: 1; }
-.metric--speed .metric__unit { margin-left: 1%; font-size: calc(30.6 * var(--u)); transform: translateY(calc(5 * var(--u))); }
-.card--speed .caption { top: 64.75%; font-size: calc(20.33 * var(--u)); }
-.card--speed .learn-more { top: 83.9%; width: calc(111 * var(--u)); height: calc(44 * var(--u)); }
-
-/* ---------- card 2: context ---------- */
-.card--context {
-  background:
-    radial-gradient(ellipse 118% 66% at 48% -8%, rgba(221,232,255,.065), transparent 74%),
-    radial-gradient(ellipse 106% 52% at 48% 112%, rgba(255,155,139,.075), transparent 73%),
-    radial-gradient(ellipse 82% 15% at 50% 29%, rgba(240,204,244,.24), transparent 81%),
-    radial-gradient(ellipse 64% 18% at 50% 61%, rgba(239,177,208,.17), transparent 81%),
-    radial-gradient(ellipse 43% 42% at -5% 30%, rgba(228,220,255,.53), transparent 78%),
-    radial-gradient(ellipse 43% 42% at 105% 30%, rgba(245,200,210,.54), transparent 78%),
-    radial-gradient(ellipse 70% 48% at 70% 110%, rgba(238,204,201,.62), transparent 77%),
-    radial-gradient(ellipse 70% 23% at 78% 1%, rgba(251,208,226,.56), transparent 78%),
-    radial-gradient(ellipse 78% 25% at 15% 8%, rgba(218,211,255,.54), transparent 79%),
-    radial-gradient(ellipse 38% 31% at 80% 90%, rgba(230,190,191,.38), transparent 74%),
-    radial-gradient(ellipse 45% 26% at 47% 78%, rgba(236,184,183,.45), transparent 73%),
-    linear-gradient(164deg, #c9b5e1 0%, #ad80ca 29%, #9d4f72 64%, #793246 100%);
-  background-origin: border-box;
-}
-.card--context .card__title { font-size: calc(23 * var(--u)); line-height: 1.48; }
-.card--context .card__grain { opacity: .68; }
-.card--context::before {
-  mix-blend-mode: multiply;
-  opacity: .54;
-  background:
-    radial-gradient(ellipse 18% 23% at 20% 32%, rgba(103,41,148,.24), transparent 76%),
-    radial-gradient(ellipse 20% 24% at 81% 30%, rgba(121,34,113,.22), transparent 76%),
-    radial-gradient(ellipse 66% 9% at 50% 30%, rgba(103,33,125,.26), transparent 82%),
-    radial-gradient(ellipse 68% 8% at 50% 69%, rgba(86,27,64,.23), transparent 83%),
-    linear-gradient(103deg, rgba(255,255,255,.08), transparent 31%, rgba(255,255,255,.05) 63%, transparent 88%);
-}
-.context-glow { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-.context-backdrop {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  -webkit-mask: linear-gradient(180deg, #000 0%, #000 54%, rgba(0,0,0,.72) 58%, rgba(0,0,0,.18) 62%, transparent 65%);
-          mask: linear-gradient(180deg, #000 0%, #000 54%, rgba(0,0,0,.72) 58%, rgba(0,0,0,.18) 62%, transparent 65%);
-}
-.context-window {
-  position: absolute;
-  z-index: 3;
-  top: 32.4%;
-  left: 20.4%;
-  width: 59%;
-  height: 30.1%;
-  overflow: hidden;
+.nav__links a:hover { color: #000; }
+.nav__contact {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
   border: none;
-  border-radius: calc(10 * var(--u));
-  background:
-    linear-gradient(0deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,.15) 45%, rgba(255,255,255,0) 80%),
-    linear-gradient(270deg, rgba(213,62,152,.62) 0px, rgba(213,62,152,0) calc(5 * var(--u))),
-    radial-gradient(ellipse 118% 70% at 60% 8%, rgba(255,203,252,.34), transparent 74%),
-    linear-gradient(105deg, rgba(250,232,250,.72) 0%, rgba(238,120,214,.68) 51%, rgba(222,86,177,.82) 100%);
-  box-shadow: 0 calc(13 * var(--u)) calc(25 * var(--u)) rgba(70,17,69,.31), inset 0 1px 0 rgba(255,255,255,.12);
-  -webkit-backdrop-filter: blur(calc(9 * var(--u))) saturate(1.08);
-          backdrop-filter: blur(calc(9 * var(--u))) saturate(1.08);
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 14px 26px;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  transition: background .2s ease;
 }
-.window-grain { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .24; mix-blend-mode: soft-light; }
-.window-lines { position: absolute; top: 9%; left: 6.7%; width: 87%; height: 24%; }
-.window-lines span { display: block; }
-.window-lines span:nth-child(1) {
-  width: 29%;
-  height: calc(6 * var(--u));
-  border-radius: calc(2.5 * var(--u));
-  background: rgba(255,255,255,.72);
-  margin-bottom: calc(3 * var(--u));
+.nav__contact:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.nav__burger {
+  display: none;
+  margin-left: auto;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
-.window-lines span:nth-child(2),
-.window-lines span:nth-child(3) {
-  width: 100%;
-  height: calc(22 * var(--u));
-  border-radius: calc(6 * var(--u));
-  background: linear-gradient(90deg, rgba(255,240,253,.72), rgba(255,170,242,.75) 42%, rgba(255,108,235,.78));
+.nav__burger span { display: block; width: 22px; height: 2px; background: #fff; }
+.nav__menu {
+  display: none;
+  flex-basis: 100%;
+  flex-direction: column;
+  gap: 18px;
+  padding: 8px 0 4px;
 }
-.window-lines span:nth-child(3) { width: 86%; margin-top: calc(3 * var(--u)); opacity: .64; }
-.metric--context { top: 48.0%; transform: translateX(2.1cqw); }
-.metric--context .dot-number { width: 30.5%; }
-.metric--context .dot-svg {
-  transform: translate(calc(-1 * var(--u)), calc(-.5 * var(--u))) scale(.96, 1.02);
-  transform-origin: center;
-}
-.card--context .caption {
-  top: 65.72%;
-  color: rgba(255,255,255,.84);
-  font-size: calc(19.1 * var(--u));
-  letter-spacing: calc(-.28 * var(--u));
-  line-height: 1.38;
-}
-.card--context .learn-more { top: 83.9%; height: calc(44 * var(--u)); }
+.nav__menu a { color: #1a1c1e; font-weight: 700; letter-spacing: 0.06em; }
+.nav.is-open .nav__menu { display: flex; }
 
-/* ---------- card 3: connections ---------- */
-.card--connections {
-  background:
-    radial-gradient(ellipse 54% 14% at 56% 0%, rgba(255,206,190,.16), transparent 76%),
-    radial-gradient(ellipse 38% 24% at 102% 8%, rgba(255,190,164,.24), transparent 75%),
-    radial-gradient(ellipse 28% 24% at -5% 66%, rgba(255,192,174,.30), transparent 74%),
-    radial-gradient(ellipse 46% 30% at 104% 32%, rgba(255,146,52,.42), transparent 74%),
-    radial-gradient(ellipse 80% 36% at 62% 57%, rgba(255,141,36,.62), transparent 72%),
-    radial-gradient(ellipse 58% 30% at 6% 103%, rgba(199,49,45,.38), transparent 76%),
-    radial-gradient(ellipse 60% 32% at 97% 101%, rgba(190,40,44,.42), transparent 76%),
-    linear-gradient(177deg, #d84736 0%, #dd523c 24%, #e8703d 52%, #de5641 78%, #d34239 100%);
-  background-origin: border-box;
-}
-.card--connections .card__grain { opacity: .58; }
-.card--connections::before {
-  background:
-    linear-gradient(102deg, rgba(255,255,255,.07), transparent 30%, rgba(255,255,255,.05) 62%, transparent 88%),
-    radial-gradient(ellipse 84% 26% at 54% 4%, rgba(255,255,255,.11), transparent 74%);
-}
-.connections-map {
-  position: absolute;
+.hero__title {
+  position: relative;
   z-index: 2;
-  top: 21.7%;
-  left: 0;
-  width: 100%;
-  height: 43%;
-  opacity: .78;
-  pointer-events: none;
-  -webkit-mask: linear-gradient(180deg, #000 0%, #000 50%, rgba(0,0,0,.46) 67%, rgba(0,0,0,.15) 83%, transparent 96%);
-          mask: linear-gradient(180deg, #000 0%, #000 50%, rgba(0,0,0,.46) 67%, rgba(0,0,0,.15) 83%, transparent 96%);
+  padding: min(clamp(40px, 9vw, 120px), 9vh) 20px min(clamp(24px, 4vw, 44px), 5vh) clamp(20px, 9vw, 118px);
+  font-size: min(clamp(34px, 7.6vw, 80px), 9.2vh);
 }
-.metric--connections { top: 48.5%; transform: translateX(2.1cqw); }
-.metric--connections .dot-number { width: 23%; }
+.hero__title span { display: block; }
+.hero__title .indent { padding-left: min(238px, 28vw); }
+.hero__cta {
+  position: relative;
+  z-index: 2;
+  padding: 0 20px min(clamp(36px, 6vw, 80px), 7vh) calc(clamp(20px, 9vw, 118px) + min(238px, 28vw));
+}
 
-/* ---------- portrait tablet ---------- */
-@media (min-width: 768px) and (max-width: 1180px) and (max-aspect-ratio: 6/7) {
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(2, max-content);
-    justify-content: center;
-    align-content: center;
-    --card-w: min((100cqw - var(--gap)) / 2, (100cqh - var(--gap)) / 2 * 429 / 554, 429px);
-  }
-  .card:last-child { grid-column: 1 / -1; justify-self: center; }
+/* ---------- about ---------- */
+.about {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 40px;
+  background: linear-gradient(180deg, #F2F1F0 0%, #F7F6F8 18%, #F7F6F8 100%);
+  padding: clamp(60px, 10vw, 140px) 0 clamp(30px, 5vw, 70px) clamp(20px, 9vw, 118px);
+}
+.about__text { flex: 1 1 420px; min-width: 300px; }
+.about__title { font-size: clamp(34px, 6.5vw, 72px); }
+.about__title span { display: block; }
+.about__title .indent { padding-left: min(160px, 18vw); }
+.about__copy {
+  max-width: 520px;
+  margin: 32px 0 0 min(160px, 18vw);
+  font-size: clamp(14px, 1.6vw, 17px);
+  line-height: 1.7;
+  color: #6b6f72;
+}
+.about__more { margin: 36px 0 0 min(160px, 18vw); }
+.about__media {
+  position: relative;
+  flex: 1 1 360px;
+  min-width: 280px;
+  display: flex;
+  justify-content: flex-end;
+}
+.about__video { display: block; width: 100%; max-width: 644px; height: auto; }
+.about__tint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100%;
+  max-width: 644px;
+  height: 100%;
+  background: #15BCDF;
+  mix-blend-mode: hue;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ---------- mobile ---------- */
-@media (max-width: 767px) {
-  html, body { height: auto; overflow: visible; }
-  .stage {
-    height: auto;
-    min-height: 100svh;
-    overflow: visible;
-    background:
-      linear-gradient(rgba(236,236,234,.08), rgba(236,236,234,.08)),
-      url("https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/0f4926a4-e660-4df2-9195-2bfb3e341bdd.webp") center top / 100% 100% no-repeat,
-      #e8e8e8;
+@media (max-width: 700px) {
+  .hero__video { right: auto; left: -12%; width: 119%; }
+  .hero__scrim { display: none; }
+  .nav__links, .nav__contact { display: none; }
+  .nav__burger { display: flex; }
+  .hero__title {
+    margin-top: 360px;
+    padding: 0 20px 28px 20px;
+    font-size: clamp(34px, 10vw, 56px);
   }
-  .stage-motion--wide { display: none; }
-  .stage-motion--narrow { display: block; }
-  .masthead { grid-template-columns: minmax(0, 1fr); }
-  .cards {
-    container-type: inline-size;
-    flex: 0 0 auto;
-    flex-direction: column;
-    align-items: center;
-    --card-w: min(100cqw, 429px);
-  }
-}
-
-/* ---------- entrance ---------- */
-html.entrance-active :is(.headline__line, .intro, .card, .card__title, .gauge, .context-window, .connections-map, .metric, .caption, .learn-more) {
-  will-change: opacity, translate, scale, clip-path, filter;
-}
-.card { --entrance-delay: .46s; }
-.card:nth-child(2) { --entrance-delay: .58s; }
-.card:nth-child(3) { --entrance-delay: .70s; }
-@media (max-width: 767px) {
-  .card, .card:nth-child(2), .card:nth-child(3) { --entrance-delay: .40s; }
-}
-
-html.entrance-active .headline__line { animation: headline-reveal .84s cubic-bezier(.16,1,.3,1) both; }
-html.entrance-active .headline__line:nth-child(1) { animation-delay: .08s; }
-html.entrance-active .headline__line:nth-child(2) { animation-delay: .17s; }
-html.entrance-active .intro { animation: support-reveal .72s cubic-bezier(.22,1,.36,1) .25s both; }
-html.entrance-active .card { animation: card-establish .76s cubic-bezier(.16,1,.3,1) var(--entrance-delay) both; }
-html.entrance-active .card__title { animation: card-title-reveal .62s cubic-bezier(.22,1,.36,1) calc(var(--entrance-delay) + .14s) both; }
-html.entrance-active .gauge { animation: gauge-resolve .82s cubic-bezier(.16,1,.3,1) calc(var(--entrance-delay) + .30s) both; }
-html.entrance-active .context-window { animation: panel-resolve .82s cubic-bezier(.16,1,.3,1) calc(var(--entrance-delay) + .30s) both; }
-html.entrance-active .connections-map { animation: network-resolve .82s cubic-bezier(.16,1,.3,1) calc(var(--entrance-delay) + .30s) both; }
-html.entrance-active .metric { animation: metric-resolve .66s cubic-bezier(.16,1,.3,1) calc(var(--entrance-delay) + .48s) both; }
-html.entrance-active .caption { animation: support-reveal .54s cubic-bezier(.22,1,.36,1) calc(var(--entrance-delay) + .64s) both; }
-html.entrance-active .learn-more { animation: control-settle .52s cubic-bezier(.16,1,.3,1) calc(var(--entrance-delay) + .80s) both; }
-
-@keyframes headline-reveal {
-  from { opacity: 0; translate: 0 .52em; clip-path: inset(0 0 56% 0); }
-  to { opacity: 1; translate: none; clip-path: inset(-8% -2% -8% -2%); }
-}
-@keyframes support-reveal {
-  from { opacity: 0; translate: 0 8px; }
-  to { opacity: 1; translate: none; }
-}
-@keyframes card-establish {
-  from { opacity: .52; translate: 0 10px; scale: .985; }
-  to { opacity: 1; translate: none; scale: none; }
-}
-@keyframes card-title-reveal {
-  from { opacity: 0; translate: 0 calc(8 * var(--u)); clip-path: inset(0 0 48% 0); }
-  to { opacity: 1; translate: none; clip-path: inset(-8% -2% -8% -2%); }
-}
-@keyframes gauge-resolve {
-  from { opacity: 0; translate: 0 calc(9 * var(--u)); scale: .972; clip-path: inset(0 7% 18% 7%); }
-  to { opacity: 1; translate: none; scale: none; clip-path: inset(-3%); }
-}
-@keyframes panel-resolve {
-  from { opacity: 0; translate: 0 calc(10 * var(--u)); scale: .972; clip-path: inset(8% 4% 8% 4%); }
-  to { opacity: 1; translate: none; scale: none; clip-path: inset(-3%); }
-}
-@keyframes network-resolve {
-  from { opacity: 0; translate: 0 calc(6 * var(--u)); clip-path: inset(45% 0 45% 0); }
-  to { opacity: .78; translate: none; clip-path: inset(0); }
-}
-@keyframes metric-resolve {
-  from { opacity: 0; translate: 0 calc(7 * var(--u)); scale: .985; filter: blur(2.5px); }
-  to { opacity: 1; translate: none; scale: none; filter: none; }
-}
-@keyframes control-settle {
-  from { opacity: 0; translate: 0 calc(6 * var(--u)); scale: .975; }
-  to { opacity: 1; translate: none; scale: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stage-motion, .card__media { display: none; }
-  html.entrance-active :is(.headline__line, .intro, .card, .card__title, .gauge, .context-window, .connections-map, .metric, .caption, .learn-more) { animation: none; }
-  *, *::before, *::after { transition-duration: .01ms !important; }
+  .hero__cta { padding-left: calc(20px + min(238px, 28vw)); }
 }
 </style>
 </head>
 <body>
-<main class="stage">
-  <video class="stage-motion stage-motion--wide" autoplay muted loop playsinline preload="auto" aria-hidden="true"
-    poster="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/5c3ec08f-2dbf-4c0a-8588-f6106a789443.webp"
-    src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260826_125226_45cb4f38-aa7e-47e1-885d-ae0b69745369.mp4"></video>
-  <video class="stage-motion stage-motion--narrow" autoplay muted loop playsinline preload="none" aria-hidden="true"
-    poster="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/0f4926a4-e660-4df2-9195-2bfb3e341bdd.webp"
-    src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260826_125242_daae1570-386d-4bd5-8896-80499e2371e0.mp4"></video>
+<section class="hero" id="home">
+  <video class="hero__video" autoplay muted loop playsinline preload="auto" aria-hidden="true"
+    src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260823_050407_500d0339-ab28-41c1-9688-132a74a3b5aa.mp4"></video>
+  <div class="hero__scrim" aria-hidden="true"></div>
 
-  <svg class="paper-texture" aria-hidden="true" focusable="false">
-    <defs>
-      <filter id="paperNoise">
-        <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="8" stitchTiles="stitch"/>
-        <feColorMatrix type="saturate" values="0"/>
-      </filter>
-      <pattern id="paperFiber" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(17)">
-        <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,.03)" stroke-width="1"/>
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" filter="url(#paperNoise)" opacity=".05"/>
-    <rect width="100%" height="100%" fill="url(#paperFiber)"/>
-  </svg>
-
-  <svg class="filter-defs" aria-hidden="true" focusable="false">
-    <defs>
-      <filter id="cardNoise" x="0" y="0" width="100%" height="100%">
-        <feTurbulence type="fractalNoise" baseFrequency=".54" numOctaves="3" seed="27" stitchTiles="stitch"/>
-        <feColorMatrix type="saturate" values="0"/>
-        <feComponentTransfer>
-          <feFuncR type="linear" slope="1.8" intercept="-.25"/>
-          <feFuncG type="linear" slope="1.8" intercept="-.25"/>
-          <feFuncB type="linear" slope="1.8" intercept="-.25"/>
-          <feFuncA type="table" tableValues="0 .52"/>
-        </feComponentTransfer>
-      </filter>
-      <filter id="panelNoiseF" x="0" y="0" width="100%" height="100%">
-        <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="13" stitchTiles="stitch"/>
-        <feColorMatrix type="saturate" values="0"/>
-      </filter>
-    </defs>
-  </svg>
-
-  <header class="masthead">
-    <h1 class="headline">
-      <span class="headline__line">Built for <span class="dot-word" data-dots="Intelligent" aria-label="Intelligent"></span></span>
-      <span class="headline__line">Agent Payments</span>
-    </h1>
-    <p class="intro">Every call is bought per request over x402 and paid from<br class="desktop-break"> card-funded Nevermined credits, which are consumed only<br class="desktop-break"> when the upstream data actually arrives.</p>
-  </header>
-
-  <section class="cards" aria-label="Performance capabilities">
-    <!-- CARD 1 -->
-    <article class="card card--speed">
-      <video class="card__media" autoplay muted loop playsinline preload="auto" aria-hidden="true"
-        poster="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/167977c6-8539-46b1-9a15-8dba566f50b8.png"
-        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260826_130045_1a612b69-4854-4b34-8043-ccb91f2c60af.mp4"></video>
-      <svg class="card__grain" viewBox="0 0 429 554" preserveAspectRatio="none" aria-hidden="true"><rect width="429" height="554" filter="url(#cardNoise)"/></svg>
-      <h2 class="card__title">Upstream Purchase<br>x402 Settlement Latency</h2>
-      <svg class="gauge" viewBox="0 0 326 326" aria-hidden="true">
-        <defs>
-          <linearGradient id="gaugeArc" gradientUnits="userSpaceOnUse" x1="7" y1="136" x2="312" y2="109">
-            <stop offset="0" stop-color="#ff9ab7" stop-opacity=".06"/>
-            <stop offset=".08" stop-color="#ff8caf" stop-opacity=".44"/>
-            <stop offset=".34" stop-color="#ff6796" stop-opacity=".94"/>
-            <stop offset=".58" stop-color="#ff6796" stop-opacity="1"/>
-            <stop offset=".82" stop-color="#ffe7ed" stop-opacity=".74"/>
-            <stop offset=".94" stop-color="#fff8fa" stop-opacity=".28"/>
-            <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-          </linearGradient>
-          <linearGradient id="gaugeShadow" gradientUnits="userSpaceOnUse" x1="11" y1="136" x2="308" y2="110">
-            <stop offset="0" stop-color="#6e1639" stop-opacity=".04"/>
-            <stop offset=".09" stop-color="#6e1639" stop-opacity=".17"/>
-            <stop offset=".52" stop-color="#72163d" stop-opacity=".18"/>
-            <stop offset=".78" stop-color="#7b1a43" stop-opacity=".1"/>
-            <stop offset="1" stop-color="#7b1a43" stop-opacity="0"/>
-          </linearGradient>
-          <radialGradient id="radarBeam" gradientUnits="userSpaceOnUse" cx="163" cy="163" r="145">
-            <stop offset=".3" stop-color="#650f35" stop-opacity="0"/>
-            <stop offset=".45" stop-color="#650f35" stop-opacity=".025"/>
-            <stop offset=".7" stop-color="#650f35" stop-opacity=".065"/>
-            <stop offset=".9" stop-color="#650f35" stop-opacity=".08"/>
-            <stop offset="1" stop-color="#650f35" stop-opacity=".05"/>
-          </radialGradient>
-          <linearGradient id="radarBeamEdge" gradientUnits="userSpaceOnUse" x1="238" y1="33" x2="190.5" y2="115.4">
-            <stop offset="0" stop-color="#ffe7ef" stop-opacity=".19"/>
-            <stop offset=".48" stop-color="#ffd1df" stop-opacity=".11"/>
-            <stop offset=".82" stop-color="#ffc6d7" stop-opacity=".045"/>
-            <stop offset="1" stop-color="#ffc6d7" stop-opacity="0"/>
-          </linearGradient>
-          <filter id="radarSoft"><feGaussianBlur stdDeviation="1.35"/></filter>
-          <filter id="radarHalo" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5.2"/></filter>
-          <filter id="gaugeBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="11"/></filter>
-        </defs>
-        <path class="arc-shadow" d="M11.34 136.26A154 154 0 0 1 307.71 110.33" fill="none" stroke="url(#gaugeShadow)" stroke-width="3.2" stroke-linecap="round"/>
-        <path class="outer-ring" d="M6.91 135.48A158.5 158.5 0 0 1 311.94 108.79" fill="none" stroke="url(#gaugeArc)" stroke-width="2.2" stroke-linecap="round"/>
-        <path class="fine-ring" d="M19.22 137.65A146 146 0 0 1 236 36.56" fill="none" stroke="rgba(255,166,194,.31)" stroke-width="1.15"/>
-        <path d="M238 33.1A150 150 0 0 1 277.9 66.6L199.8 119.5A55 55 0 0 0 190.5 115.4Z" fill="#6a1238" opacity=".022" filter="url(#radarHalo)"/>
-        <path class="radar-sweep" d="M238 33.1A150 150 0 0 1 277.9 66.6L199.8 119.5A55 55 0 0 0 190.5 115.4Z" fill="url(#radarBeam)" filter="url(#radarSoft)"/>
-        <path d="M238 33.1L190.5 115.4" stroke="url(#radarBeamEdge)" stroke-width="1.25" stroke-linecap="round" filter="url(#radarSoft)"/>
-        <g id="gaugeTicks"></g>
-        <ellipse cx="225" cy="166" rx="92" ry="76" fill="#fff" opacity=".055" filter="url(#gaugeBlur)"/>
+  <nav class="nav">
+    <a class="logo" href="#home" aria-label="card credits home">
+      <span class="logo__mark" aria-hidden="true"></span>
+      <span class="logo__word">card credits</span>
+    </a>
+    <div class="nav__links">
+      <a href="#home">HOME</a>
+      <a href="#about">ABOUT</a>
+      <a href="#about">CONTACT US</a>
+    </div>
+    <a class="nav__contact" href="#about">
+      <svg width="17" height="13" viewBox="0 0 17 13" fill="none" stroke="#fff" stroke-width="1.4" aria-hidden="true">
+        <rect x="0.7" y="0.7" width="15.6" height="11.6"/>
+        <path d="M0.7 0.7l7.8 6.4 7.8-6.4"/>
       </svg>
-      <div class="metric metric--speed">
-        <span class="dot-number" data-dots="2.4" aria-label="2.4"></span>
-        <span class="metric__unit">s</span>
-      </div>
-      <p class="caption">Median upstream<br>purchase on Solana</p>
-      <button class="learn-more" type="button">Learn More</button>
-    </article>
+      Contact us
+    </a>
+    <button class="nav__burger" type="button" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav__menu">
+      <a href="#home">HOME</a>
+      <a href="#about">ABOUT</a>
+      <a href="#about">CONTACT US</a>
+    </div>
+  </nav>
 
-    <!-- CARD 2 -->
-    <article class="card card--context">
-      <video class="card__media" autoplay muted loop playsinline preload="auto" aria-hidden="true"
-        poster="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/0446d1d5-e65e-4db5-8090-3e30d09afc43.png"
-        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260826_130054_dd005674-d693-4d81-80a5-357f7f10b3a3.mp4"></video>
-      <div class="context-glow" aria-hidden="true">
-        <svg class="context-backdrop" viewBox="0 0 429 554" preserveAspectRatio="none">
-          <defs>
-            <filter id="tileSoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="3.4"/></filter>
-            <filter id="groutSoft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6.5"/></filter>
-            <filter id="wallNoiseF" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".75" numOctaves="2" seed="71" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
-            <filter id="deepNoiseF" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="57" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
-            <filter id="wallNoiseF2" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="29" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+  <h1 class="hero__title">
+    <span>Paying</span>
+    <span>the</span>
+    <span>upstream</span>
+    <span class="indent">for</span>
+    <span class="indent">your</span>
+    <span class="indent accent">agents</span>
+  </h1>
+  <div class="hero__cta">
+    <a class="btn-cta" href="#about">Get started</a>
+  </div>
+</section>
 
-            <linearGradient id="tTLf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d4b0ee" stop-opacity=".05"/><stop offset="1" stop-color="#c6bbff" stop-opacity=".18"/></linearGradient>
-            <linearGradient id="tTCf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d5c2ff" stop-opacity=".22"/><stop offset=".35" stop-color="#e0bdff" stop-opacity=".26"/><stop offset=".7" stop-color="#f2a0ee" stop-opacity=".32"/><stop offset="1" stop-color="#ff96da" stop-opacity=".34"/></linearGradient>
-            <linearGradient id="tTCshade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
-            <linearGradient id="tTRf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe8da" stop-opacity=".56"/><stop offset=".5" stop-color="#f9c6d0" stop-opacity=".26"/><stop offset="1" stop-color="#eba4bf" stop-opacity=".08"/></linearGradient>
-            <linearGradient id="tMLf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cdb6f2" stop-opacity=".30"/><stop offset="1" stop-color="#b98ad8" stop-opacity=".14"/></linearGradient>
-            <linearGradient id="tMLx" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8f63c9" stop-opacity=".18"/><stop offset="1" stop-color="#8f63c9" stop-opacity="0"/></linearGradient>
-            <linearGradient id="tMCf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e7b7f0" stop-opacity=".22"/><stop offset="1" stop-color="#d77fc3" stop-opacity=".16"/></linearGradient>
-            <linearGradient id="tMRf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e858b8" stop-opacity=".52"/><stop offset=".5" stop-color="#e6459c" stop-opacity=".46"/><stop offset="1" stop-color="#de74ba" stop-opacity=".16"/></linearGradient>
-            <linearGradient id="mrLShade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7a1f63" stop-opacity=".22"/><stop offset=".35" stop-color="#7a1f63" stop-opacity="0"/></linearGradient>
-            <linearGradient id="tileSheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-            <linearGradient id="deepX" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6e2240" stop-opacity=".55"/><stop offset=".35" stop-color="#e3776c" stop-opacity=".45"/><stop offset=".7" stop-color="#f2a3c4" stop-opacity=".40"/><stop offset="1" stop-color="#9fb2f0" stop-opacity=".35"/></linearGradient>
-            <linearGradient id="gV1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b2c7c" stop-opacity=".30"/><stop offset="1" stop-color="#6b2c7c" stop-opacity=".05"/></linearGradient>
-            <linearGradient id="gV2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a2470" stop-opacity=".30"/><stop offset="1" stop-color="#8a2470" stop-opacity=".08"/></linearGradient>
-            <linearGradient id="gH1" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6b2c7c" stop-opacity=".24"/><stop offset=".5" stop-color="#8a2470" stop-opacity=".30"/><stop offset="1" stop-color="#9b2a6a" stop-opacity=".24"/></linearGradient>
-            <radialGradient id="hazeTR"><stop offset="0" stop-color="#ffe6ee" stop-opacity=".40"/><stop offset="1" stop-color="#ffe6ee" stop-opacity="0"/></radialGradient>
-            <radialGradient id="jxLight"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-            <radialGradient id="mlDim"><stop offset="0" stop-color="#4e1b4e" stop-opacity=".28"/><stop offset="1" stop-color="#4e1b4e" stop-opacity="0"/></radialGradient>
-            <radialGradient id="mlViolet"><stop offset="0" stop-color="#9a6bf0" stop-opacity=".26"/><stop offset="1" stop-color="#9a6bf0" stop-opacity="0"/></radialGradient>
-            <radialGradient id="blobPlum"><stop offset="0" stop-color="#6d1f5d" stop-opacity=".26"/><stop offset="1" stop-color="#6d1f5d" stop-opacity="0"/></radialGradient>
-            <radialGradient id="blobMagenta"><stop offset="0" stop-color="#d23ca0" stop-opacity=".22"/><stop offset="1" stop-color="#d23ca0" stop-opacity="0"/></radialGradient>
-
-            <linearGradient id="wallFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".62" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-            <mask id="wallM" maskUnits="userSpaceOnUse" x="0" y="0" width="429" height="554"><rect width="429" height="554" fill="url(#wallFade)"/></mask>
-            <mask id="tileRowsM" maskUnits="userSpaceOnUse" x="0" y="0" width="429" height="554"><rect x="-24" y="22" width="481" height="330" rx="15" fill="#fff"/></mask>
-            <mask id="noiseM" maskUnits="userSpaceOnUse" x="0" y="0" width="429" height="554"><rect x="-24" y="22" width="481" height="330" fill="url(#wallFade)"/></mask>
-            <mask id="tTCshadeM" maskUnits="userSpaceOnUse" x="88" y="22" width="247" height="150"><rect x="88" y="22" width="247" height="150" fill="url(#tTCshade)"/></mask>
-            <mask id="tB3m" maskUnits="userSpaceOnUse" x="-24" y="175" width="481" height="180"><rect x="-24" y="175" width="481" height="180" fill="#fff"/></mask>
-            <linearGradient id="deepFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000"/><stop offset=".25" stop-color="#fff"/><stop offset="1" stop-color="#fff"/></linearGradient>
-            <mask id="deepM" maskUnits="userSpaceOnUse" x="-24" y="384" width="480" height="170"><rect x="-24" y="384" width="480" height="170" fill="url(#deepFade)"/></mask>
-          </defs>
-
-          <g mask="url(#wallM)">
-            <!-- deep band -->
-            <rect x="-24" y="384" width="480" height="170" fill="url(#deepX)" mask="url(#deepM)"/>
-            <rect x="-24" y="400" width="480" height="154" filter="url(#deepNoiseF)" opacity=".22" mask="url(#deepM)"/>
-
-            <!-- grout -->
-            <g filter="url(#groutSoft)">
-              <rect x="81" y="30" width="8" height="150" fill="url(#gV1)"/>
-              <rect x="338" y="30" width="8" height="322" fill="url(#gV2)"/>
-              <rect x="0" y="167" width="429" height="12" fill="url(#gH1)"/>
-              <ellipse cx="84" cy="172" rx="22" ry="16" fill="url(#blobPlum)"/>
-              <ellipse cx="342" cy="172" rx="24" ry="18" fill="url(#blobMagenta)"/>
-            </g>
-
-            <g mask="url(#tileRowsM)">
-              <g filter="url(#tileSoft)">
-                <!-- top row -->
-                <rect x="-24" y="22" width="106" height="149" rx="15" fill="url(#tTLf)"/>
-                <rect x="88" y="22" width="247" height="150" rx="15" fill="url(#tTCf)"/>
-                <rect x="88" y="22" width="247" height="150" rx="15" fill="#5a2076" opacity=".10" mask="url(#tTCshadeM)"/>
-                <rect x="88" y="22" width="247" height="46" rx="15" fill="url(#tileSheen)"/>
-                <rect x="346" y="22" width="111" height="147" rx="15" fill="url(#tTRf)"/>
-                <rect x="346" y="22" width="111" height="46" rx="15" fill="url(#tileSheen)"/>
-                <!-- middle row -->
-                <g mask="url(#tB3m)">
-                  <rect x="-24" y="177" width="108" height="174" rx="15" fill="url(#tMLf)"/>
-                  <rect x="-24" y="177" width="108" height="174" rx="15" fill="url(#tMLx)"/>
-                  <rect x="-24" y="177" width="108" height="52" rx="15" fill="url(#tileSheen)"/>
-                  <rect x="88" y="177" width="247" height="174" rx="15" fill="url(#tMCf)"/>
-                  <rect x="344" y="175" width="113" height="176" rx="15" fill="url(#tMRf)"/>
-                  <rect x="344" y="175" width="113" height="176" rx="15" fill="url(#mrLShade)"/>
-                </g>
-              </g>
-              <ellipse cx="352" cy="86" rx="140" ry="108" fill="url(#hazeTR)"/>
-              <ellipse cx="75" cy="150" rx="82" ry="54" fill="url(#jxLight)"/>
-              <ellipse cx="8" cy="334" rx="76" ry="58" fill="url(#mlDim)"/>
-              <ellipse cx="56" cy="215" rx="56" ry="62" fill="url(#mlViolet)"/>
-            </g>
-
-            <!-- noise -->
-            <rect x="-24" y="22" width="481" height="330" filter="url(#wallNoiseF)" opacity=".34" style="mix-blend-mode:soft-light" mask="url(#noiseM)"/>
-            <rect x="-24" y="177" width="108" height="174" rx="15" filter="url(#wallNoiseF2)" opacity=".3" style="mix-blend-mode:soft-light"/>
-            <rect x="344" y="175" width="113" height="176" rx="15" filter="url(#wallNoiseF2)" opacity=".3" style="mix-blend-mode:soft-light"/>
-          </g>
-        </svg>
-      </div>
-      <svg class="card__grain" viewBox="0 0 429 554" preserveAspectRatio="none" aria-hidden="true"><rect width="429" height="554" filter="url(#cardNoise)"/></svg>
-      <h2 class="card__title">Prepaid Plan<br>Card-funded Credits</h2>
-      <div class="context-window" aria-hidden="true">
-        <svg class="window-grain" viewBox="0 0 252 166" preserveAspectRatio="none"><rect width="252" height="166" filter="url(#panelNoiseF)"/></svg>
-        <div class="window-lines"><span></span><span></span><span></span></div>
-      </div>
-      <div class="metric metric--context">
-        <span class="dot-number" data-dots="30" aria-label="30"></span>
-        <span class="metric__unit">days</span>
-      </div>
-      <p class="caption">100 credits for $1,<br>paid by card</p>
-      <button class="learn-more" type="button">Learn More</button>
-    </article>
-
-    <!-- CARD 3 -->
-    <article class="card card--connections">
-      <video class="card__media" autoplay muted loop playsinline preload="auto" aria-hidden="true"
-        poster="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/da8d0242-4dee-4f6d-813f-a5887e86ad77.png"
-        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260826_130103_7550f407-f14b-40a6-9616-7a26d7a8bd9f.mp4"></video>
-      <svg class="card__grain" viewBox="0 0 429 554" preserveAspectRatio="none" aria-hidden="true"><rect width="429" height="554" filter="url(#cardNoise)"/></svg>
-      <h2 class="card__title">Intelligent Connections<br>JIN &amp; OSD Data Sources</h2>
-      <svg class="connections-map" viewBox="0 0 429 238" preserveAspectRatio="none" aria-hidden="true">
-        <g fill="none" stroke="#fff" stroke-width="1">
-          <path opacity=".20" d="M0 5H128c27 0 36 7 39 26 2 16 9 22 24 22h106c16 0 23-8 25-25 2-16 10-23 31-23h76"/>
-          <path opacity=".30" d="M0 117h46c15 0 22 8 26 25 5 23 12 31 31 31h174c18 0 25-8 30-31 4-17 11-25 26-25h96"/>
-          <path opacity=".34" d="M0 173h87c15 0 22 7 27 25 4 15 11 22 28 22h140c17 0 25-7 29-22 5-18 12-25 28-25h90"/>
-          <path opacity=".16" d="M0 228h120c17 0 25-5 28-18 4-15 10-20 28-20h81c18 0 25 6 28 20 4 13 11 18 28 18h116"/>
-          <path opacity=".26" d="M0 5H429M0 61H429M0 117H429"/>
-          <path opacity=".09" d="M0 173H429"/>
-        </g>
-        <g fill="none" stroke="#fff8dd" stroke-width="1.15">
-          <path opacity=".52" d="M0 61h95c14 0 22-6 27-20 4-13 12-20 27-20h115c15 0 23 6 27 20 5 14 13 20 28 20h110"/>
-          <path opacity=".94" d="M0 117h88c15 0 22-8 25-25 4-24 12-31 31-31h129c20 0 27 7 31 31 3 17 10 25 26 25h99"/>
-        </g>
-        <circle cx="45" cy="117" r="6.5" fill="#fff"/>
-        <circle cx="133" cy="61" r="6.5" fill="#fff4a7"/>
-        <circle cx="189" cy="61" r="6.5" fill="#fff1a4"/>
-        <circle cx="319" cy="61" r="6.5" fill="#fff4a6"/>
-        <circle cx="319" cy="117" r="6.5" fill="#fff2a0"/>
-      </svg>
-      <div class="metric metric--connections">
-        <span class="dot-number" data-dots="20" aria-label="20"></span>
-        <span class="metric__unit">/day</span>
-      </div>
-      <p class="caption">Paid agent calls,<br>alternating JIN and OSD</p>
-      <button class="learn-more" type="button">Learn More</button>
-    </article>
-  </section>
-</main>
+<section class="about" id="about">
+  <div class="about__text">
+    <h2 class="about__title">
+      <span>About</span>
+      <span class="indent accent">Gateway</span>
+    </h2>
+    <p class="about__copy">Card Credits Gateway lets AI agents pay for data with a card. A $1 card purchase buys 100 Nevermined credits; each call to JIN or OSD is bought from the upstream over x402 on Solana, and a credit is consumed only when the data actually arrives.</p>
+    <a class="btn-cta about__more" href="/healthz">Learn more</a>
+  </div>
+  <div class="about__media">
+    <video class="about__video" autoplay muted loop playsinline preload="auto" aria-hidden="true"
+      src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260823_063501_2e2c8971-de1e-473a-8611-a0c9ae7ee186.mp4"></video>
+    <div class="about__tint" aria-hidden="true"></div>
+  </div>
+</section>
 
 <script>
 (() => {
-  const NS = "http://www.w3.org/2000/svg";
-
-  // gauge ticks
-  const ticks = document.getElementById("gaugeTicks");
-  if (ticks) {
-    for (let i = 0; i <= 22; i++) {
-      const a = (190 + i * 5) * Math.PI / 180;
-      const outer = 142, inner = i % 5 === 0 ? 129 : 133;
-      const l = document.createElementNS(NS, "line");
-      l.setAttribute("class", "tick");
-      l.setAttribute("x1", (163 + Math.cos(a) * inner).toFixed(2));
-      l.setAttribute("y1", (163 + Math.sin(a) * inner).toFixed(2));
-      l.setAttribute("x2", (163 + Math.cos(a) * outer).toFixed(2));
-      l.setAttribute("y2", (163 + Math.sin(a) * outer).toFixed(2));
-      l.setAttribute("stroke-width", i % 5 === 0 ? "1.5" : "1");
-      ticks.appendChild(l);
-    }
-  }
-
-  // LED dot type
-  const G = {
-    "0": ["01110","10001","10011","10101","11001","10001","01110"],
-    "1": ["010","110","010","010","010","010","111"],
-    "2": ["01110","10001","00001","00010","00100","01000","11111"],
-    "3": ["11110","00001","00001","01110","00001","00001","11110"],
-    "4": ["00010","00110","01010","10010","11111","00010","00010"],
-    "5": ["11111","10000","10000","11110","00001","00001","11110"],
-    "6": ["01110","10000","10000","11110","10001","10001","01110"],
-    "7": ["11111","00001","00010","00100","01000","01000","01000"],
-    "8": ["01110","10001","10001","01110","10001","10001","01110"],
-    "9": ["01110","10001","10001","01111","00001","00001","01110"],
-    ".": ["0","0","0","0","0","0","1"],
-    "I": ["111","010","010","010","010","010","111"],
-    "a": ["00000","00000","01110","00001","01111","10001","01111"],
-    "e": ["00000","00000","01110","10001","11111","10000","01110"],
-    "g": ["00000","00000","01111","10001","01111","00001","01110"],
-    "i": ["1","0","1","1","1","1","1"],
-    "l": ["10","10","10","10","10","10","01"],
-    "n": ["00000","00000","11110","10001","10001","10001","10001"],
-    "t": ["010","010","111","010","010","010","001"],
-    "r": ["00000","00000","10110","11001","10000","10000","10000"]
-  };
-  document.querySelectorAll("[data-dots]").forEach((el) => {
-    const word = el.classList.contains("dot-word");
-    const pitchX = word ? 4 : 5, pitchY = 4, gap = 1;
-    const r = word ? 1.8
-      : el.closest(".metric--context") ? 2.32
-      : el.closest(".metric--speed") ? 2.05
-      : 1.55;
-    const svg = document.createElementNS(NS, "svg");
-    svg.setAttribute("class", "dot-svg");
-    svg.setAttribute("aria-hidden", "true");
-    svg.setAttribute("fill", "currentColor");
-    let x = 0;
-    [...el.dataset.dots].forEach((ch, idx, arr) => {
-      const g = G[ch];
-      if (!g) return;
-      const w = g[0].length;
-      g.forEach((row, y) => {
-        [...row].forEach((bit, col) => {
-          if (bit !== "1") return;
-          const c = document.createElementNS(NS, "circle");
-          c.setAttribute("cx", (x + col * pitchX + 1.55).toFixed(2));
-          c.setAttribute("cy", (y * pitchY + 1.55).toFixed(2));
-          c.setAttribute("r", r);
-          svg.appendChild(c);
-        });
-      });
-      x += w * pitchX + (idx < arr.length - 1 ? gap * pitchX : 0);
-    });
-    svg.setAttribute("viewBox", `0 0 ${x} 28`);
-    el.replaceChildren(svg);
+  // autoplay retry: every 1s and on the first click / touch
+  const videos = [...document.querySelectorAll('video')];
+  const kick = () => videos.forEach((v) => {
+    v.muted = true;
+    if (v.paused) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
   });
+  kick();
+  setInterval(kick, 1000);
+  const once = () => { kick(); document.removeEventListener('click', once); document.removeEventListener('touchstart', once); };
+  document.addEventListener('click', once);
+  document.addEventListener('touchstart', once, { passive: true });
 
-  // entrance
-  const root = document.documentElement;
-  const done = () => { clearTimeout(window.__entranceFailsafe); root.classList.remove("entrance-active"); };
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    done();
-  } else {
-    const last = document.querySelector(matchMedia("(max-width: 767px)").matches ? ".card--speed .learn-more" : ".card--connections .learn-more");
-    if (last) last.addEventListener("animationend", done, { once: true });
-  }
+  // mobile menu
+  const nav = document.querySelector('.nav');
+  const burger = document.querySelector('.nav__burger');
+  burger.addEventListener('click', () => {
+    const open = nav.classList.toggle('is-open');
+    burger.setAttribute('aria-expanded', String(open));
+  });
+  nav.querySelectorAll('.nav__menu a').forEach((a) => a.addEventListener('click', () => {
+    nav.classList.remove('is-open');
+    burger.setAttribute('aria-expanded', 'false');
+  }));
+  addEventListener('resize', () => {
+    if (innerWidth > 700) { nav.classList.remove('is-open'); burger.setAttribute('aria-expanded', 'false'); }
+  });
 })();
 </script>
 </body>
