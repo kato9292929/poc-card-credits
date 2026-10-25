@@ -4,6 +4,7 @@ import { runBuyerCron, type BuyerCronDeps } from '../src/buyer/cron.ts';
 import { MemoryLogStore } from '../src/logstore/memory.ts';
 import { MemoryStateStore } from '../src/buyer/state.ts';
 import { parseLines } from '../src/logstore/types.ts';
+import { resumeBuyer } from '../src/buyer/resume.ts';
 
 function deps(reply: (path: string) => { status: number; body: unknown; headers?: Record<string, string> }, patch: Partial<BuyerCronDeps> = {}) {
   const store = new MemoryLogStore();
@@ -71,4 +72,16 @@ test('a gateway 502 (upstream failure) is logged but does not stop the agent', a
   const r = await runBuyerCron(d);
   assert.equal(r.action === 'called' && r.exhausted, false);
   assert.equal(state.value, null);
+});
+
+test('resumeBuyer clears the stop state and logs how long the buyer was stopped', async () => {
+  const state = new MemoryStateStore({ stopped: true, since: '2026-10-26T01:00:00.000Z', errorKind: 'insufficient_credits', status: 402 });
+  const store = new MemoryLogStore();
+  const r = await resumeBuyer(state, store, new Date('2026-10-26T03:30:00.000Z'));
+  assert.deepEqual(r, { resumed: true, stoppedSince: '2026-10-26T01:00:00.000Z', stoppedForSec: 9000, previousKind: 'insufficient_credits' });
+  assert.equal(state.value?.stopped, false);
+  const line = JSON.parse((await store.read('2026-10-26'))!.trim());
+  assert.equal(line.event, 'resumed');
+  assert.equal(line.stoppedForSec, 9000);
+  assert.deepEqual(await resumeBuyer(state, store), { resumed: false });
 });

@@ -27,6 +27,7 @@ import { runBuyerCron } from '../buyer/cron.ts';
 import { BlobStateStore } from '../buyer/state.ts';
 import { ensureDelegation, type CardProvider } from '../buyer/delegation.ts';
 import { runPaygProbe } from '../buyer/payg-probe.ts';
+import { resumeBuyer } from '../buyer/resume.ts';
 
 /** デプロイ先（Vercel）に必要な環境変数。名前だけを /healthz に出す */
 export const REMOTE_REQUIRED = {
@@ -246,6 +247,25 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
       res.json({ balance: String(b.balance), isSubscriber: (b as any).isSubscriber, holderAddress: (b as any).holderAddress });
     } catch (e) {
       res.status(500).json({ error: 'balance_failed', reason: (e as Error).message });
+    }
+  });
+
+  // 止まった買い手エージェントを再開する（プランを買い直したあと）。Blob が Vercel 上でしか読み書きできないのでここで行う
+  app.post('/buyer/resume', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    try {
+      res.json(await resumeBuyer(new BlobStateStore(cfg.blobReadWriteToken), buyerStore));
+    } catch (e) {
+      res.status(500).json({ error: 'resume_failed', reason: (e as Error).message });
+    }
+  });
+  // 買い手エージェントの停止状態（停止中か・いつから・原因）。残高切れを見張るのに使う
+  app.get('/buyer/state', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    try {
+      res.json((await new BlobStateStore(cfg.blobReadWriteToken).get()) ?? { stopped: false });
+    } catch (e) {
+      res.status(500).json({ error: 'state_failed', reason: (e as Error).message });
     }
   });
 
