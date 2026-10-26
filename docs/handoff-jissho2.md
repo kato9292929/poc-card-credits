@@ -31,3 +31,17 @@
 ## 決済 1 件の所要時間
 
 `latencyMs`（ゲートウェイがリクエストを受けてから応答するまで）と `upstreamLatencyMs`（上流への x402 購入の往復）。10/21〜22 の支払いあり 17 回の中央値は、上流 2.36 秒・ゲートウェイ全体 5.5 秒。
+
+## 上流の失敗と settle 失敗の整理（2026-10-27 追記）
+
+**settle 失敗 3 件**（Nevermined のクレジット消費の失敗。上流への支払いは成立）。3 件ともオンチェーンで成功し、ゲートウェイのウォレットから受取先 `4s8XQC2WzRfgH8Xiep7ybnCW11VKRCMwxQF6jknx3VPf` に 0.01 USDC が動いている（JIN と OSD は同じ受取先なので、どちらへの支払いかはゲートウェイのログの `routeId` で分ける）。
+
+| 時刻（UTC） | 上流 | 上流の tx |
+|---|---|---|
+| 2026-10-21T10:43:55Z | JIN series | `yv4sf4HboA4dET3bx9oQ5sLEWNZdofqgQgyHqwsM1EEbx1LjTj5HiSD4eeaQSwwxHvCRb9VqQ15prSfkMVPqRbE` |
+| 2026-10-22T00:29:50Z | OSD JP catalysts | `fMHxTTzUZwvE6hv9dQGeRoSVEjz8geo9gfPRczPaMjHHuzCoWuFe4TER2kcgsDsZPpMESAztjdHkLMdKBvyMfie` |
+| 2026-10-23T08:30:41Z | JIN series | `ZBVBfQg4syFaGmw3LpC3avHaKBrRMqLr96oNouPte2EqiZpDYcXD3qWEtZXzA2Bfxs2xjxKA3Z1JuA8L8b5tiCK` |
+
+JIN の売り手ログ（`GET /sales/:date`）に載るはずなのは JIN の 2 件。OSD の 1 件は JIN の売り手ログには出ない。
+
+**10/26 21:05 JST（12:05:21Z）の JIN の失敗**は、500 ではなく **支払いを送った後の 402**（`upstreamStatus: 402`、`error: "upstream 402 after payment"`、`upstreamTx: none`）。ゲートウェイは最初の 402 を受けて署名した支払いを送り、JIN は 2 回目も 402 を返した。チェーン上ではこの時刻前後（11:50〜12:30Z）にゲートウェイのウォレットの取引は無く、USDC は動いていない。クレジットも消費していない。つまり JIN 側で支払いの検証か決済（ファシリテーター）が失敗したと考えられる。理由はこのときは記録できていなかったので、以降は上流の 402 が示す理由（`PAYMENT-REQUIRED` の `error`、無ければ本文の先頭）を `error` に残す（実証1 `upstream/x402.ts`）。

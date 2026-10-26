@@ -148,12 +148,26 @@ export class X402UpstreamBuyer implements UpstreamBuyer {
         settled = undefined;
       }
       const paid = second.ok && settled?.success ? chosen.micro : 0n;
+      // 支払いを送ったのに上流が失敗したときは、上流が示した理由を残す（x402 v2 は 402 の PAYMENT-REQUIRED の error、
+      // それ以外は本文の先頭）。10/26 の JIN の「支払い後の 402」で理由が分からなかったため
+      let upstreamReason: string | undefined;
+      if (!second.ok) {
+        try {
+          const pr = second.headers.get('payment-required');
+          if (pr) upstreamReason = JSON.parse(Buffer.from(pr, 'base64').toString('utf8'))?.error;
+        } catch {
+          upstreamReason = undefined;
+        }
+        if (!upstreamReason) {
+          upstreamReason = (await second.clone().text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200) || undefined;
+        }
+      }
       return done(second, {
         attemptedMicro: chosen.micro,
         paidMicro: paid,
         network: chosen.req.network,
         tx: settled?.transaction || undefined,
-        error: second.ok ? undefined : `upstream ${second.status} after payment${settled?.errorReason ? `: ${settled.errorReason}` : ''}`,
+        error: second.ok ? undefined : `upstream ${second.status} after payment${settled?.errorReason ? `: ${settled.errorReason}` : ''}${upstreamReason ? ` (${upstreamReason})` : ''}`,
       });
     } catch (e) {
       return fail(0, `upstream payment failed: ${(e as Error).message}`, {

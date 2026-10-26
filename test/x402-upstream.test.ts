@@ -20,8 +20,15 @@ const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64');
 
 before(async () => {
   server = createServer((req, res) => {
-    const [, , amount, network] = (req.url ?? '').split('/');
+    const [, kind, amount, network] = (req.url ?? '').split('/');
     const sig = req.headers['payment-signature'];
+    if (sig && kind === 'reject') {
+      // 支払いを受けたが決済に失敗した上流：402 と PAYMENT-REQUIRED の error を返す
+      res.statusCode = 402;
+      res.setHeader('PAYMENT-REQUIRED', b64({ x402Version: 2, error: 'facilitator settle failed', accepts: [] }));
+      res.end('{}');
+      return;
+    }
     if (sig) {
       paidRequests.push(req.url!);
       res.setHeader('PAYMENT-RESPONSE', b64({ success: true, transaction: '0xfeedbeef', network }));
@@ -108,4 +115,14 @@ test('mainnet asset while testnet-only: refused', async () => {
   const guard = new SpendGuard(usdToMicro('0.05'), usdToMicro('5'));
   const r = await b.buy({ url: `${base}/price/10000/eip155:8453`, method: 'GET', expectedPrice: usdToMicro('0.01'), guard });
   assert.equal(r.refused, 'no_acceptable_requirement');
+});
+
+test('upstream 402 after payment: the upstream reason is kept, nothing counted as paid', async () => {
+  const b = await buyer();
+  const guard = new SpendGuard(usdToMicro('0.05'), usdToMicro('5'));
+  const r = await b.buy({ url: `${base}/reject/10000/eip155:84532`, method: 'GET', expectedPrice: usdToMicro('0.01'), guard });
+  assert.equal(r.status, 402);
+  assert.equal(r.paidMicro, 0n);
+  assert.equal(r.attemptedMicro, 10_000n);
+  assert.match(r.error ?? '', /upstream 402 after payment \(facilitator settle failed\)/);
 });
