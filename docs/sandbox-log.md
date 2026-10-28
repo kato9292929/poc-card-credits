@@ -118,3 +118,11 @@ Blob ストアをプロジェクトにつなぐと、`BLOB_READ_WRITE_TOKEN` で
 | 17:46 / 18:16 / 19:30Z | 02:46 / 03:16 / 04:30 | 以後の定期実行は `skipped`（`reason: stopped`）。ゲートウェイへの呼び出しも無い |
 
 402 の回数：**1 回**（停止後はゲートウェイを呼ばないので増えない）。
+
+### 買い直しから自動補充への切り替え（2026-10-28）
+
+- App の購入ページで保存済みカード（`**** 1387`、VGS で登録）を選ぶと「Error creating Stripe payment intent」で買えなかった。同じ時刻に買い手のキーで `orderFiatPlan` を呼ぶと Stripe の PaymentIntent は作られたので、プランと売り手の Stripe 接続は問題なく、画面で保存済みカードを使う経路だけの失敗。10/21 は購入画面でカード番号を直接入れて買えている
+- 残高切れの記録（10/27）は取れたので、`BLOCK_CARD_TOPUP=false`（`config/sandbox.json`、`2b8b005`）にして Nevermined の自動補充を許した。以後は人が買い直さない
+- 2026-10-28T05:49:31Z に買い手を再開（`resumed`、停止 132,862 秒 ≒ 36.9 時間、原因 `insufficient_credits`）し、1 回呼んだ：残高 0 のまま JIN series を買い、settle の時点で Nevermined が委任のカードに請求して 100 クレジットを足し、1 消費（`cardTopUpOrderTx: pi_3UVPk5Ph60bb0BjN0E29IjLR`、`remainingCredits: 99`）
+- **購入からクレジット付与まで**：自動補充では settle の 1 回の呼び出しの中で請求と付与が済む（このリクエスト全体で約 7 秒、上流の購入を含む）。画面からの購入（人の操作）での区間は、10/21・今回とも測れていない
+- 委任の上限は 100¢ なので、1 回の補充で使い切る。次の補充のときは、買い手エージェントが上限 100¢ の委任を新しく作る（`ensureDelegation`）
