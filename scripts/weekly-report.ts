@@ -3,6 +3,7 @@
  *
  *   npm run report:weekly            # 先週（ISO週）
  *   npm run report:weekly -- 2026-W42
+ *   npm run report:weekly -- 2026-10-22..2026-10-28   # JST の日付の範囲
  *
  * 入力:
  *   ゲートウェイのログ            GET $GATEWAY_URL/logs/:date（LOG_READ_TOKEN）。開発時は log/YYYY-MM-DD.jsonl
@@ -37,8 +38,18 @@ function weekDays(week: string): string[] {
   return Array.from({ length: 7 }, (_, i) => new Date(monday.getTime() + i * 86_400_000).toISOString().slice(0, 10));
 }
 
-const week = process.argv[2] ?? isoWeek(new Date(Date.now() - 7 * 86_400_000));
-const days = weekDays(week);
+// 引数は ISO 週（2026-W43）か、JST の日付の範囲（2026-10-22..2026-10-28。§4 の 7 日間のように週の途中から始まる期間用）
+function rangeDays(arg: string): string[] | undefined {
+  const m = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(arg);
+  if (!m) return undefined;
+  const out: string[] = [];
+  for (let t = Date.parse(`${m[1]}T00:00:00Z`); t <= Date.parse(`${m[2]}T00:00:00Z`); t += 86_400_000) out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+const arg = process.argv[2] ?? isoWeek(new Date(Date.now() - 7 * 86_400_000));
+const range = rangeDays(arg);
+const week = range ? `${range[0]}..${range.at(-1)}` : arg;
+const days = range ?? weekDays(arg);
 const inWeek = (ts: string) => days.includes(ts.slice(0, 10));
 
 // ゲートウェイのログ：GATEWAY_URL と LOG_READ_TOKEN があれば GET /logs/:date（実証2と同じ読み方）、
@@ -131,7 +142,7 @@ const noCards = cards.length === 0;
 
 const md = `# 週次レポート ${week}
 
-期間: ${days[0]} 〜 ${days[6]}（JST）／ 生成: ${new Date().toISOString()}
+期間: ${days[0]} 〜 ${days.at(-1)}（JST）／ 生成: ${new Date().toISOString()}
 
 ## 1. カード手数料
 
