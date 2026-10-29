@@ -13,6 +13,16 @@ import type { StateStore } from './state.ts';
 import type { DelegationResult } from './delegation.ts';
 import { classifyExhaustion } from './classify.ts';
 
+/**
+ * 定期購入を動かしてよいか。本番（live）では自社のカードに実費がかかるので止める。
+ * 本番での動作確認は手で1回だけ行う（docs/live.md）。どうしても定期で動かすときだけ BUYER_CRON_IN_LIVE=true。
+ */
+export function buyerCronAllowed(env: Record<string, string | undefined>): { ok: true } | { ok: false; reason: string } {
+  const nvm = env.NVM_ENVIRONMENT ?? 'sandbox';
+  if ((nvm === 'live' || nvm === 'staging_live') && env.BUYER_CRON_IN_LIVE !== 'true') return { ok: false, reason: 'live_environment' };
+  return { ok: true };
+}
+
 export interface BuyerCronDeps {
   store: LogStore;
   state: StateStore;

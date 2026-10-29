@@ -23,7 +23,7 @@ import { X402UpstreamBuyer } from '../upstream/x402.ts';
 import { loadAssets } from '../upstream/assets.ts';
 import { createHandler } from './handler.ts';
 import { microToUsd } from '../money.ts';
-import { runBuyerCron } from '../buyer/cron.ts';
+import { buyerCronAllowed, runBuyerCron } from '../buyer/cron.ts';
 import { BlobStateStore } from '../buyer/state.ts';
 import { ensureDelegation, type CardProvider } from '../buyer/delegation.ts';
 import { runPaygProbe } from '../buyer/payg-probe.ts';
@@ -292,6 +292,8 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
   // 買い手エージェント（Vercel Cron）：Authorization: Bearer $CRON_SECRET のときだけ1回分を実行する
   app.get('/cron/buyer', async (req, res) => {
     if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    const allowed = buyerCronAllowed(process.env);
+    if (!allowed.ok) return void res.json({ skipped: allowed.reason });
     const lack = missing(REMOTE_REQUIRED.buyerCron);
     if (lack.length) return void res.status(503).json({ error: 'buyer_not_configured', missing: lack });
     try {

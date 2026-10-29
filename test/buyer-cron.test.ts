@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runBuyerCron, type BuyerCronDeps } from '../src/buyer/cron.ts';
+import { buyerCronAllowed, runBuyerCron, type BuyerCronDeps } from '../src/buyer/cron.ts';
 import { MemoryLogStore } from '../src/logstore/memory.ts';
 import { MemoryStateStore } from '../src/buyer/state.ts';
 import { parseLines } from '../src/logstore/types.ts';
@@ -84,4 +84,12 @@ test('resumeBuyer clears the stop state and logs how long the buyer was stopped'
   assert.equal(line.event, 'resumed');
   assert.equal(line.stoppedForSec, 9000);
   assert.deepEqual(await resumeBuyer(state, store), { resumed: false });
+});
+
+test('buyerCronAllowed: 本番（live）では定期購入を止める。BUYER_CRON_IN_LIVE=true のときだけ動かす', () => {
+  assert.deepEqual(buyerCronAllowed({}), { ok: true });
+  assert.deepEqual(buyerCronAllowed({ NVM_ENVIRONMENT: 'sandbox' }), { ok: true });
+  assert.deepEqual(buyerCronAllowed({ NVM_ENVIRONMENT: 'live' }), { ok: false, reason: 'live_environment' });
+  assert.deepEqual(buyerCronAllowed({ NVM_ENVIRONMENT: 'staging_live' }), { ok: false, reason: 'live_environment' });
+  assert.deepEqual(buyerCronAllowed({ NVM_ENVIRONMENT: 'live', BUYER_CRON_IN_LIVE: 'true' }), { ok: true });
 });
