@@ -325,6 +325,14 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
       res.json(r);
     } catch (e) {
       console.error(e);
+      // 買い手ログに書けずに終わった回の理由を、停止状態のファイルに残す（別の書き方なので、ログが書けないときも残りやすい）
+      try {
+        const stateStore = new BlobStateStore(cfg.blobReadWriteToken);
+        const st = (await stateStore.get()) ?? { stopped: false };
+        await stateStore.set({ ...st, lastCronError: { at: new Date().toISOString(), message: String((e as Error).message).slice(0, 300) } });
+      } catch (e2) {
+        console.error('[cron] could not record the error', e2);
+      }
       res.status(500).json({ error: 'buyer_cron_failed', reason: (e as Error).message });
     }
   });

@@ -6,6 +6,8 @@ export interface BuyerState {
   since?: string;
   errorKind?: string;
   status?: number;
+  /** 定期実行が例外で終わったときの理由（メッセージだけ）。買い手ログに行が残らなかった回の原因を追うため */
+  lastCronError?: { at: string; message: string };
 }
 
 export interface StateStore {
