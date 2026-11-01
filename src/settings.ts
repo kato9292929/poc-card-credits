@@ -13,6 +13,10 @@ export const SETTINGS_FILE = process.env.SANDBOX_SETTINGS_FILE;
 
 export function applySettings(file = SETTINGS_FILE): void {
   if (file && !existsSync(file)) return;
+  // 本番（NVM_ENVIRONMENT が sandbox 以外）では Sandbox の設定を一切使わない。プラン ID・自動補充・上流の
+  // mainnet 購入などが Sandbox の値のまま本番に混ざるのを防ぐ（本番の値は環境変数で渡す）
+  const env = process.env.NVM_ENVIRONMENT;
+  if (env && env !== 'sandbox') return;
   const json = (file ? JSON.parse(readFileSync(file, 'utf8')) : sandboxJson) as Record<string, string>;
   for (const k of SETTING_KEYS) {
     if (!process.env[k] && typeof json[k] === 'string' && json[k] !== '') process.env[k] = json[k];

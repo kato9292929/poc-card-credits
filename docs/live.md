@@ -15,8 +15,8 @@ B が通らない場合、カードの入口は本番に移せない。そのと
 
 ## 1. 本番の API キー
 
-- Nevermined App（<https://nevermined.app>。Sandbox と同じ URL で、環境を切り替えて使う）の **Settings → Global NVM API Keys** で、環境に live を選んでキーを作る。接頭辞は `live:`。
-- 売り手用（`NVM_API_KEY_SELLER`）と買い手用（`NVM_API_KEY_BUYER`）を別に作る。`sandbox:` のキーは本番では使えない（違う環境のキーは 4xx になる）。
+- Nevermined App（<https://nevermined.app>。Sandbox と同じ URL で、環境を切り替えて使う）の **Settings → Global NVM API Keys** で、環境に live を選んでキーを作る。接頭辞は `live:` のはずだが、Sandbox では新しい App が接頭辞の無いキーを出したことがある。接頭辞の無いキーは `NVM_ENVIRONMENT` に従う（`src/config.ts`）。
+- 売り手用（`NVM_API_KEY_SELLER`）は必須。買い手用（`NVM_API_KEY_BUYER`）は、本番では定期購入を止める（6）ので、手で確かめるときだけ要る。作るなら売り手とは**別のアカウント**で作る（Sandbox で、同じアカウントのキーを入れて購入が見えなくなった）。`sandbox:` のキーは本番では使えない（違う環境のキーは 4xx になる）。
 - API は `https://api.live.nevermined.app/`（SDK に `environment: 'live'` を渡せば自動で切り替わる）。
 
 ## 2. Stripe Connect の接続（本番）
@@ -30,18 +30,20 @@ B が通らない場合、カードの入口は本番に移せない。そのと
 本番は Sandbox と別の環境なので、プランとエージェントは作り直す（Sandbox の ID は本番では使えない、と考える。ドキュメントには明記が無い）。設定は Sandbox と同じにする。
 
 - $1 で 100 クレジット、有効 30 日、1 リクエスト 1 クレジット（`config/plans.json` の `prepaid-100`）
-- カード払い（`nvm:card-delegation`）、自動補充あり
+- カード払い（`nvm:card-delegation`）。自動補充はプランの設定ではなくゲートウェイの `BLOCK_CARD_TOPUP` で決まり、本番の既定は「起こさない」
 - エンドポイントは `/api/jin/series` と `/api/alpha/jp/catalysts`
 
+App の「Set up plan」にはクレジット制の有効期限の欄が無い（Sandbox で確認）。30 日の期限を付けるには、Sandbox と同じく SDK の `registerPlan` に `durationSecs` を渡して作る（`plan:register -- --try-sdk-expiry`。今は Sandbox 専用にしてあるので、移行のときに Live でも使えるようにする）。その後に照合とエージェント登録：
+
 ```sh
-NVM_ENVIRONMENT=live ALLOW_LIVE=true npm run plan:register
+NVM_ENVIRONMENT=live ALLOW_LIVE=true npm run plan:register -- --plan-id <プラン ID>
 ```
 
 出てきたプラン ID とエージェント ID を控える。購入 URL は `https://nevermined.app/checkout/plan/<プラン ID>`。
 
 ## 4. ゲートウェイの環境変数の切り替え（Vercel）
 
-`docs/go-live.md` の手順に加えて、次のとおりにする。
+`docs/go-live.md` の手順に加えて、次のとおりにする。**本番では `config/sandbox.json` は一切読まれない**（`src/settings.ts`。Sandbox のプラン ID・`BLOCK_CARD_TOPUP=false`・`UPSTREAM_MAINNET_PURCHASE` が本番に混ざらないように）ので、`PUBLIC_BASE_URL`・`UPSTREAM_JIN_URL`・`UPSTREAM_OSD_URL`・`NVM_RECEIVER_ADDRESS` も環境変数で入れる。`BLOCK_CARD_TOPUP` は入れない（本番の既定は、残高不足なら 402 を返して自動補充を起こさない）。
 
 | 変数 | 本番での値 |
 |---|---|
@@ -49,7 +51,7 @@ NVM_ENVIRONMENT=live ALLOW_LIVE=true npm run plan:register
 | `ALLOW_LIVE` | `true` |
 | `NVM_API_KEY_SELLER` / `NVM_API_KEY_BUYER` | 1 で作った `live:` のキー |
 | `NVM_PLAN_ID` / `NVM_AGENT_ID` | 3 で作った ID |
-| `UPSTREAM_MAINNET_PURCHASE` | **消す**（Sandbox 専用。live では起動を拒否する） |
+| `UPSTREAM_MAINNET_PURCHASE` | 入れない（Sandbox 専用。live では起動を拒否する）。この値は Vercel の環境変数ではなく `config/sandbox.json` にあるが、`NVM_ENVIRONMENT` が sandbox 以外のときはこのファイル全体が読まれないので、何もしなくてよい |
 | `NVM_PLAN_ID_PAYG` | 設定しない |
 | ゲートウェイのウォレット | `docs/go-live.md` のとおり新しく作る（`docs/wallet.md` に追記） |
 | `BUYER_CRON_IN_LIVE` | 設定しない（下の 6） |

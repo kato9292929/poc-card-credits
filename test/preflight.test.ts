@@ -61,3 +61,20 @@ test('preflight(gateway) passes exactly when the gateway config loads', async ()
   // 値は表示しない
   assert.ok(!preflight(FULL).out.includes(svm));
 });
+
+test('sandbox settings are not applied outside sandbox (no Sandbox plan ID or top-up setting leaks into live)', async () => {
+  const { applySettings } = await import('../src/settings.ts');
+  const saved = { ...process.env };
+  try {
+    for (const k of ['NVM_PLAN_ID', 'BLOCK_CARD_TOPUP', 'UPSTREAM_MAINNET_PURCHASE']) delete process.env[k];
+    process.env.NVM_ENVIRONMENT = 'live';
+    applySettings('config/sandbox.json');
+    assert.equal(process.env.NVM_PLAN_ID, undefined);
+    assert.equal(process.env.BLOCK_CARD_TOPUP, undefined);
+    process.env.NVM_ENVIRONMENT = 'sandbox';
+    applySettings('config/sandbox.json');
+    assert.ok(process.env.NVM_PLAN_ID);
+  } finally {
+    process.env = saved;
+  }
+});
