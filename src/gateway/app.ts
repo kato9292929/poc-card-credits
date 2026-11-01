@@ -23,11 +23,12 @@ import { X402UpstreamBuyer } from '../upstream/x402.ts';
 import { loadAssets } from '../upstream/assets.ts';
 import { createHandler } from './handler.ts';
 import { microToUsd } from '../money.ts';
-import { buyerCronAllowed, runBuyerCron } from '../buyer/cron.ts';
+import { buyerCronAllowed, runBuyerCron, runBuyerOnce, type BuyerCronDeps } from '../buyer/cron.ts';
 import { BlobStateStore } from '../buyer/state.ts';
 import { ensureDelegation, type CardProvider } from '../buyer/delegation.ts';
 import { runPaygProbe } from '../buyer/payg-probe.ts';
 import { resumeBuyer } from '../buyer/resume.ts';
+import { setupPlan } from '../setup/plan.ts';
 
 /** デプロイ先（Vercel）に必要な環境変数。名前だけを /healthz に出す */
 export const REMOTE_REQUIRED = {
@@ -105,6 +106,20 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
         missing: { gateway: missing(REMOTE_REQUIRED.gateway), buyerCron: missing(REMOTE_REQUIRED.buyerCron), logRead: missing(REMOTE_REQUIRED.logRead) },
       });
     });
+    // 本番に移る最初の 1 回：プラン ID が無いとゲートウェイは起動しないので、この状態でプランとエージェントを作る（docs/live.md）
+    app.post('/setup/plan', async (req, res) => {
+      if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+      const lackNow = missing(REMOTE_REQUIRED.gateway).filter((n) => n !== 'NVM_PLAN_ID' && n !== 'NVM_AGENT_ID');
+      if (lackNow.length) return void res.status(503).json({ error: 'not_ready', missing: lackNow });
+      try {
+        const apiKey = process.env.NVM_API_KEY_SELLER!;
+        const environment = nvmEnvironment(apiKey);
+        if (environment !== 'sandbox' && environment !== 'live') return void res.status(400).json({ error: 'unsupported_environment' });
+        res.json(await setupPlan({ apiKey, environment, publicBaseUrl: process.env.PUBLIC_BASE_URL!, blobToken: process.env.BLOB_READ_WRITE_TOKEN || undefined }));
+      } catch (e) {
+        res.status(500).json({ error: 'setup_failed', reason: (e as Error).message });
+      }
+    });
     app.use((_req, res) => void res.status(503).json({ error: 'gateway_not_configured' }));
     return { app, flush: async () => {} };
   }
@@ -171,6 +186,7 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     logSalt: cfg.logSalt,
     blockCardTopUp: cfg.blockCardTopUp,
     upstreamNetworkMode: cfg.testnetOnly ? 'testnet' : 'mainnet',
+    nvmEnvironment: cfg.nvmEnvironment,
     syncSpend: cfg.logSink === 'blob' ? syncSpend : undefined,
   });
 
@@ -289,6 +305,51 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     res.json(r);
   });
 
+  // 買い手エージェントの依存（定期実行と、手で1回呼ぶ /buyer/once で共有）
+  const buyerDeps = (): BuyerCronDeps => {
+    const buyerKey = process.env.NVM_API_KEY_BUYER!;
+    const environment = nvmEnvironment(buyerKey);
+    const payments = Payments.getInstance({ nvmApiKey: buyerKey, environment });
+    const provider = (process.env.BUYER_CARD_PROVIDER ?? 'stripe') as CardProvider;
+    const webhook = process.env.NOTIFY_WEBHOOK_URL;
+    return {
+      store: buyerStore,
+      state: new BlobStateStore(cfg.blobReadWriteToken),
+      mintToken: async () => {
+        const delegation = await ensureDelegation(payments.delegation, { provider, limitCents: delegationLimitCents(), durationSecs: 30 * 86_400 });
+        const { accessToken } = await payments.x402.getX402AccessToken(cfg.planId, cfg.agentId, {
+          scheme: 'nvm:card-delegation',
+          network: provider,
+          delegationConfig: { delegationId: delegation.delegationId },
+        });
+        return { token: accessToken, delegation };
+      },
+      gatewayUrl: cfg.publicBaseUrl,
+      paths: [process.env.BUYER_JIN_PATH ?? '/api/jin/series', process.env.BUYER_OSD_PATH?.split(',')[0] ?? '/api/alpha/jp/catalysts'],
+      callsPerDay: Number(process.env.BUYER_CALLS_PER_DAY ?? 20),
+      salt: cfg.logSalt,
+      notify: webhook
+        ? async (text) => {
+            await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) }).catch(() => undefined);
+          }
+        : async (text) => console.error(text),
+    };
+  };
+
+  // 手で1回だけ買う（本番での動作確認、docs/live.md の 5）。本番でも動く。Bearer $CRON_SECRET、パスは ?path=（既定 JIN series）
+  app.post('/buyer/once', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    const lack = missing(REMOTE_REQUIRED.buyerCron);
+    if (lack.length) return void res.status(503).json({ error: 'buyer_not_configured', missing: lack });
+    const path = String(req.query.path ?? '/api/jin/series');
+    if (!pricing.routes.some((r) => r.path === path)) return void res.status(400).json({ error: 'unknown_path' });
+    try {
+      res.json(await runBuyerOnce(buyerDeps(), path));
+    } catch (e) {
+      res.status(500).json({ error: 'buyer_once_failed', reason: (e as Error).message });
+    }
+  });
+
   // 買い手エージェント（Vercel Cron）：Authorization: Bearer $CRON_SECRET のときだけ1回分を実行する
   app.get('/cron/buyer', async (req, res) => {
     if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
@@ -297,33 +358,7 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     const lack = missing(REMOTE_REQUIRED.buyerCron);
     if (lack.length) return void res.status(503).json({ error: 'buyer_not_configured', missing: lack });
     try {
-      const buyerKey = process.env.NVM_API_KEY_BUYER!;
-      const environment = nvmEnvironment(buyerKey);
-      const payments = Payments.getInstance({ nvmApiKey: buyerKey, environment });
-      const provider = (process.env.BUYER_CARD_PROVIDER ?? 'stripe') as CardProvider;
-      const webhook = process.env.NOTIFY_WEBHOOK_URL;
-      const r = await runBuyerCron({
-        store: buyerStore,
-        state: new BlobStateStore(cfg.blobReadWriteToken),
-        mintToken: async () => {
-          const delegation = await ensureDelegation(payments.delegation, { provider, limitCents: delegationLimitCents(), durationSecs: 30 * 86_400 });
-          const { accessToken } = await payments.x402.getX402AccessToken(cfg.planId, cfg.agentId, {
-            scheme: 'nvm:card-delegation',
-            network: provider,
-            delegationConfig: { delegationId: delegation.delegationId },
-          });
-          return { token: accessToken, delegation };
-        },
-        gatewayUrl: cfg.publicBaseUrl,
-        paths: [process.env.BUYER_JIN_PATH ?? '/api/jin/series', process.env.BUYER_OSD_PATH?.split(',')[0] ?? '/api/alpha/jp/catalysts'],
-        callsPerDay: Number(process.env.BUYER_CALLS_PER_DAY ?? 20),
-        salt: cfg.logSalt,
-        notify: webhook
-          ? async (text) => {
-              await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) }).catch(() => undefined);
-            }
-          : async (text) => console.error(text),
-      });
+      const r = await runBuyerCron(buyerDeps());
       res.json(r);
     } catch (e) {
       console.error(e);

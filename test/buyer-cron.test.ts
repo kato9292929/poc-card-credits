@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buyerCronAllowed, runBuyerCron, type BuyerCronDeps } from '../src/buyer/cron.ts';
+import { buyerCronAllowed, runBuyerCron, runBuyerOnce, type BuyerCronDeps } from '../src/buyer/cron.ts';
 import { MemoryLogStore } from '../src/logstore/memory.ts';
 import { MemoryStateStore } from '../src/buyer/state.ts';
 import { parseLines } from '../src/logstore/types.ts';
@@ -92,4 +92,15 @@ test('buyerCronAllowed: 本番（live）では定期購入を止める。BUYER_C
   assert.deepEqual(buyerCronAllowed({ NVM_ENVIRONMENT: 'live' }), { ok: false, reason: 'live_environment' });
   assert.deepEqual(buyerCronAllowed({ NVM_ENVIRONMENT: 'staging_live' }), { ok: false, reason: 'live_environment' });
   assert.deepEqual(buyerCronAllowed({ NVM_ENVIRONMENT: 'live', BUYER_CRON_IN_LIVE: 'true' }), { ok: true });
+});
+
+test('runBuyerOnce: ignores the stop state and the daily quota, logs manual, never stops the scheduled buyer', async () => {
+  const { d, store, state, called } = deps(() => ({ status: 402, body: { error: 'insufficient_credits' } }), { callsPerDay: 0 });
+  await state.set({ stopped: true, since: '2026-10-13T00:00:00Z' });
+  const r = await runBuyerOnce(d, '/api/alpha/jp/catalysts');
+  assert.deepEqual(called, ['/api/alpha/jp/catalysts']);
+  assert.equal(r.action, 'called');
+  const call = parseLines(await store.read('2026-10-14')).find((e) => e.event === 'call');
+  assert.equal(call.manual, true);
+  assert.equal(state.value?.since, '2026-10-13T00:00:00Z', 'a manual 402 does not rewrite the stop state');
 });

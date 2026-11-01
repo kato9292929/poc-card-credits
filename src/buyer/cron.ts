@@ -40,7 +40,15 @@ export type CronResult =
   | { action: 'skipped'; reason: 'stopped' | 'daily_quota_reached' }
   | { action: 'called'; status: number; path: string; exhausted: boolean };
 
-export async function runBuyerCron(d: BuyerCronDeps): Promise<CronResult> {
+/**
+ * 手で 1 回だけ呼ぶ（本番での動作確認用、docs/live.md の 5）。停止状態と 1 日の回数は見ず、指定したパスを 1 回買う。
+ * 買い手ログには manual: true を付けて残す。
+ */
+export async function runBuyerOnce(d: BuyerCronDeps, path: string): Promise<CronResult> {
+  return runBuyerCron(d, { path });
+}
+
+export async function runBuyerCron(d: BuyerCronDeps, manual?: { path: string }): Promise<CronResult> {
   const now = d.now ?? (() => new Date());
   const f = d.fetch ?? fetch;
   const day = jstDay(now());
@@ -49,15 +57,15 @@ export async function runBuyerCron(d: BuyerCronDeps): Promise<CronResult> {
     return d.store.append(jstDay(t), JSON.stringify({ ts: t.toISOString(), date_jst: jstDay(t), ...e }));
   };
 
-  const st = await d.state.get();
+  const st = manual ? null : await d.state.get();
   if (st?.stopped) {
     await append({ event: 'skipped', reason: 'stopped', stoppedSince: st.since });
     return { action: 'skipped', reason: 'stopped' };
   }
   const calls = parseLines(await d.store.read(day)).filter((e) => e.event === 'call').length;
-  if (calls >= d.callsPerDay) return { action: 'skipped', reason: 'daily_quota_reached' };
+  if (!manual && calls >= d.callsPerDay) return { action: 'skipped', reason: 'daily_quota_reached' };
 
-  const path = d.paths[calls % 2];
+  const path = manual?.path ?? d.paths[calls % 2];
   const { token, delegation } = await d.mintToken();
   if (!delegation.reused) {
     await append({ event: 'delegation_created', delegationId: delegation.delegationId.slice(0, 8), delegationCreatedAt: delegation.createdAt, spendingLimitCents: delegation.spendingLimitCents });
@@ -85,6 +93,7 @@ export async function runBuyerCron(d: BuyerCronDeps): Promise<CronResult> {
   }
   await append({
     event: 'call',
+    ...(manual ? { manual: true } : {}),
     tokenId,
     path,
     status,
@@ -96,7 +105,7 @@ export async function runBuyerCron(d: BuyerCronDeps): Promise<CronResult> {
   });
 
   const kind = classifyExhaustion(status, body);
-  if (kind) {
+  if (kind && !manual) {
     const since = now().toISOString();
     await d.state.set({ stopped: true, since, errorKind: kind, status });
     await append({ event: 'credits_exhausted', tokenId, path, status, errorKind: kind, reason: body?.reason, balance: body?.balance, action: 'stop' });

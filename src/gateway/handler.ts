@@ -35,6 +35,8 @@ export interface GatewayDeps {
   blockCardTopUp?: boolean;
   /** 上流の支払いのネットワーク種別。ログの全行に upstreamNetworkMode として残す */
   upstreamNetworkMode: 'mainnet' | 'testnet';
+  /** Nevermined の環境。ログの全行に残す */
+  nvmEnvironment?: string;
   /** 支払いの前に、ほかのインスタンスの支払い分を日次上限に取り込む（Vercel のように複数台で動く場合） */
   syncSpend?: () => Promise<void>;
   now?: () => number;
@@ -73,6 +75,7 @@ export function createHandler(deps: GatewayDeps) {
       settle: 'skipped',
       upstreamTx: 'none',
       upstreamNetworkMode: deps.upstreamNetworkMode,
+      ...(deps.nvmEnvironment ? { nvmEnvironment: deps.nvmEnvironment } : {}),
       method: req.method,
       path: req.path,
       outcome: 'ok',

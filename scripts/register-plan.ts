@@ -36,9 +36,13 @@ const planId = argIdx > 0 ? process.argv[argIdx + 1] : undefined;
 // 結果（受け付けられたプラン ID、または拒否のエラー）を log/events.jsonl に残す。
 if (process.argv.includes('--try-sdk-expiry')) {
   const apiKey = required('NVM_API_KEY_SELLER');
+  // Sandbox と本番（live）で使う。live は nvmEnvironment が ALLOW_LIVE=true を求める
   const environment = nvmEnvironment(apiKey);
-  if (environment !== 'sandbox') throw new Error('--try-sdk-expiry is sandbox-only');
+  if (environment !== 'sandbox' && environment !== 'live') throw new Error(`--try-sdk-expiry: unsupported environment ${environment}`);
   const payments = Payments.getInstance({ nvmApiKey: apiKey, environment });
+  // 受取アドレス：指定が無ければ、キーの持ち主（売り手）のアドレス。Sandbox では App のプランの受取人と同じだった
+  const receiver = (process.env.NVM_RECEIVER_ADDRESS || payments.getAccountAddress()) as `0x${string}` | undefined;
+  if (!receiver) throw new Error('NVM_RECEIVER_ADDRESS is not set and the API key carries no account address');
   const logDir = process.env.LOG_DIR ?? 'log';
   mkdirSync(logDir, { recursive: true });
   const durationSecs = BigInt(plan.durationDays) * 86_400n;
@@ -47,7 +51,7 @@ if (process.argv.includes('--try-sdk-expiry')) {
   try {
     const r = await payments.plans.registerPlan(
       { name: plan.name, description: plan.description, accessLimit: 'credits' },
-      payments.plans.getFiatPriceConfig(usdToMicro(plan.priceUsd), required('NVM_RECEIVER_ADDRESS') as `0x${string}`),
+      payments.plans.getFiatPriceConfig(usdToMicro(plan.priceUsd), receiver),
       // App のプランと同じく 1 リクエスト 1 クレジット固定
       { ...payments.plans.getFixedCreditsConfig(BigInt(plan.credits), 1n), durationSecs },
       undefined,
@@ -112,6 +116,10 @@ const checks: [string, string | undefined, string][] = [
   ['1リクエストあたりの最大クレジット', pick('registry.credits.maxAmount', 'credits.maxAmount', 'creditsConfig.maxAmount'), '1'],
   ['x402 のスキーム', pick('metadata.plan.x402Scheme'), 'nvm:card-delegation'],
 ];
+// プランが個人と Organization のどちらの下にあるか。Stripe Connect は個人（User Profile）側に接続しているので、
+// Organization の下のプランだと、その Organization 側にも Stripe の接続が要る
+const orgId = (p as any)?.orgId ?? null;
+console.log(`所属: ${orgId ? `Organization ${orgId}（${(p as any)?.organizationName ?? '-'}）→ その Organization にも Stripe Connect の接続が要る` : '個人（User Profile の Stripe Connect を使う）'}`);
 let mismatch = false;
 let unknown = false;
 for (const [label, got, want] of checks) {

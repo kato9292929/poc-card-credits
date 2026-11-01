@@ -66,6 +66,8 @@ export interface RequestLogEntry {
   upstreamAttemptMicro?: string;
   /** 上流の支払いに使うネットワークの種別（全行に入れる）。実証2で、このゲートウェイの mainnet 上の支払いを見分けるため */
   upstreamNetworkMode: 'mainnet' | 'testnet';
+  /** Nevermined の環境（sandbox / live）。本番に移った後、実証2 が Sandbox の行と本番の行を分けるため */
+  nvmEnvironment?: string;
   /** 実際に支払ったネットワーク（CAIP-2）。上流に支払いを送ったときだけ */
   upstreamNetwork?: string;
   upstreamStatus?: number;

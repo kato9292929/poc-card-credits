@@ -13,61 +13,34 @@
 
 B が通らない場合、カードの入口は本番に移せない。そのときは実証2のカード側の外部の利用を「0（本番未移行のため）」として扱う（実証2の `docs/launch.md`）。
 
-## 1. 本番の API キー
+## 1〜5. 移行の手順（2026-11-01 版）
 
-- Nevermined App（<https://nevermined.app>。Sandbox と同じ URL で、環境を切り替えて使う）の **Settings → Global NVM API Keys** で、環境に live を選んでキーを作る。接頭辞は `live:` のはずだが、Sandbox では新しい App が接頭辞の無いキーを出したことがある。接頭辞の無いキーは `NVM_ENVIRONMENT` に従う（`src/config.ts`）。
-- 売り手用（`NVM_API_KEY_SELLER`）は必須。買い手用（`NVM_API_KEY_BUYER`）は、本番では定期購入を止める（6）ので、手で確かめるときだけ要る。作るなら売り手とは**別のアカウント**で作る（Sandbox で、同じアカウントのキーを入れて購入が見えなくなった）。`sandbox:` のキーは本番では使えない（違う環境のキーは 4xx になる）。
-- API は `https://api.live.nevermined.app/`（SDK に `environment: 'live'` を渡せば自動で切り替わる）。
+前提 A〜C は済んでいる（Stripe の本人確認は提出済み、Nevermined の Live に x402 Inc. の Stripe（日本、Standard）を個人（User Profile）側で接続済み）。Stripe の一時停止が解けていなければ、7 の購入で請求が失敗する。
 
-## 2. Stripe Connect の接続（本番）
+決めたこと：
 
-- Nevermined App（本番）の **Settings → Stripe Connect** で、x402 Inc. の Stripe アカウントを接続する（Stripe のアカウントが無ければ、流れの中で作られる）。
-- 手数料は Nevermined 2% ＋ Stripe の決済手数料。入金の前に自動で差し引かれる。入金は Stripe の通常の入金サイクル。
-- 接続アカウントを後から替えると、未入金の分は前のアカウントに入る。
+- **プランは個人の下に作る**。SDK でプランを作ると、キーの持ち主の下に入る（Sandbox で作ったプランは `orgId: null`＝個人）。本番の売り手キーを Organization ではなく **Personal** で作れば、個人側の Stripe Connect がそのまま使われ、Organization 側の接続は要らない。作った後に `orgId` を確かめる
+- **ゲートウェイのウォレットは今のものを使い続ける**（`3HG2HYh5EyGR5BnL5UaHeNkz2qA1tdwFizSbGKmkrcgV`）。Sandbox の間も上流は Solana mainnet の USDC で買っていて、このウォレットは本実証専用なので、作り直す理由が無い
+- **自動補充あり**：本番でも `BLOCK_CARD_TOPUP=false`。残高が尽きると、買い手が委任したカードに $1（委任の上限 100¢ の範囲）が自動で請求される
+- **受取アドレス**（`NVM_RECEIVER_ADDRESS`）は入れない。売り手キーの持ち主のアドレスになる（Sandbox で App のプランと同じアドレスになることを確かめた）
 
-## 3. プランの作り直し
+| # | 誰 | どこで | やること |
+|---|---|---|---|
+| 1 | 本人 | Nevermined App を **Live** にして、**売り手**アカウント（hello@x402jp.com）→ Account → API Keys | キーを作る。Organization は **Personal**。Vercel の `NVM_API_KEY_SELLER` をこの値に**差し替える** |
+| 2 | 本人 | Nevermined App（Live）、**買い手**アカウント（you.betsu.kato.m@…）→ Buying → Payment Methods | 自分のカードを登録する（本物のカード。委任に使う） |
+| 3 | 本人 | 同じ買い手アカウント → API Keys | キーを作る（Personal）。Vercel の `NVM_API_KEY_BUYER` をこの値に差し替える |
+| 4 | 本人 | Vercel → Environment Variables（Production） | 次を足す：`NVM_ENVIRONMENT=live`、`ALLOW_LIVE=true`、`UPSTREAM_TESTNET_ONLY=false`、`BLOCK_CARD_TOPUP=false`、`PUBLIC_BASE_URL=https://poc-card-credits.vercel.app`、`UPSTREAM_JIN_URL=https://jin.x402jp.com`、`UPSTREAM_OSD_URL=https://osd.x402jp.com`。ほか（`GATEWAY_WALLET_SECRET`・`LOG_SALT`・`LOG_READ_TOKEN`・`CRON_SECRET`・`BLOB_STORE_ID`）はそのまま。**Redeploy** |
+| 5 | CC | `POST /setup/plan`（Bearer `CRON_SECRET`） | 4 の後、ゲートウェイはプラン ID が無いので未設定の状態で起動する。この状態でプラン（$1・100・30 日・1 回 1 クレジット）とエージェントを作り、ID を返す。2 回呼んでも作り直さない（Blob の `state/plan-live.json`）。`orgId` と中身を照合する |
+| 6 | 本人 | Vercel → Environment Variables | CC が示す `NVM_PLAN_ID`・`NVM_AGENT_ID` を入れて **Redeploy**（秘密ではない） |
+| 7 | 本人 | 購入ページ `https://nevermined.app/checkout/plan/<プラン ID>`（買い手アカウント、Live） | **カード番号を直接入れて** 1 回だけ買う（$1 の実費）。支払った時刻を CC に伝える。失敗したら、その画面とエラーをそのまま CC に渡す |
+| 8 | CC | `GET /buyer/balance`、`POST /buyer/once?path=/api/jin/series` | 100 クレジットが付いたこと、ゲートウェイ経由で JIN series を 1 回買えること（ゲートウェイのログに `outcome: ok`、`nvmEnvironment: live`）を確かめ、sandbox-log に記録する |
+| 9 | CC → 実証2 | — | プラン ID・購入 URL・移行日を渡す。7・8 の自社の購入は `payerId` で自社に分類する |
 
-本番は Sandbox と別の環境なので、プランとエージェントは作り直す（Sandbox の ID は本番では使えない、と考える。ドキュメントには明記が無い）。設定は Sandbox と同じにする。
-
-- $1 で 100 クレジット、有効 30 日、1 リクエスト 1 クレジット（`config/plans.json` の `prepaid-100`）
-- カード払い（`nvm:card-delegation`）。自動補充はプランの設定ではなくゲートウェイの `BLOCK_CARD_TOPUP` で決まり、本番の既定は「起こさない」
-- エンドポイントは `/api/jin/series` と `/api/alpha/jp/catalysts`
-
-App の「Set up plan」にはクレジット制の有効期限の欄が無い（Sandbox で確認）。30 日の期限を付けるには、Sandbox と同じく SDK の `registerPlan` に `durationSecs` を渡して作る（`plan:register -- --try-sdk-expiry`。今は Sandbox 専用にしてあるので、移行のときに Live でも使えるようにする）。その後に照合とエージェント登録：
-
-```sh
-NVM_ENVIRONMENT=live ALLOW_LIVE=true npm run plan:register -- --plan-id <プラン ID>
-```
-
-出てきたプラン ID とエージェント ID を控える。購入 URL は `https://nevermined.app/checkout/plan/<プラン ID>`。
-
-## 4. ゲートウェイの環境変数の切り替え（Vercel）
-
-`docs/go-live.md` の手順に加えて、次のとおりにする。**本番では `config/sandbox.json` は一切読まれない**（`src/settings.ts`。Sandbox のプラン ID・`BLOCK_CARD_TOPUP=false`・`UPSTREAM_MAINNET_PURCHASE` が本番に混ざらないように）ので、`PUBLIC_BASE_URL`・`UPSTREAM_JIN_URL`・`UPSTREAM_OSD_URL`・`NVM_RECEIVER_ADDRESS` も環境変数で入れる。`BLOCK_CARD_TOPUP` は入れない（本番の既定は、残高不足なら 402 を返して自動補充を起こさない）。
-
-| 変数 | 本番での値 |
-|---|---|
-| `NVM_ENVIRONMENT` | `live` |
-| `ALLOW_LIVE` | `true` |
-| `NVM_API_KEY_SELLER` / `NVM_API_KEY_BUYER` | 1 で作った `live:` のキー |
-| `NVM_PLAN_ID` / `NVM_AGENT_ID` | 3 で作った ID |
-| `UPSTREAM_MAINNET_PURCHASE` | 入れない（Sandbox 専用。live では起動を拒否する）。この値は Vercel の環境変数ではなく `config/sandbox.json` にあるが、`NVM_ENVIRONMENT` が sandbox 以外のときはこのファイル全体が読まれないので、何もしなくてよい |
-| `NVM_PLAN_ID_PAYG` | 設定しない |
-| ゲートウェイのウォレット | `docs/go-live.md` のとおり新しく作る（`docs/wallet.md` に追記） |
-| `BUYER_CRON_IN_LIVE` | 設定しない（下の 6） |
-
-変えたら Redeploy する（Vercel の環境変数は新しいデプロイにだけ効く）。
-
-## 5. 本番での動作確認（1回だけ）
-
-1. 購入画面 `https://nevermined.app/checkout/plan/<プラン ID>` で、**カード番号を直接入れて**買う。保存済みカードを選ぶ経路は Sandbox で通らなかった（docs/nevermined.md）ので使わない
-2. 買い手のトークンでゲートウェイの `/api/jin/series` を1回呼び、200 が返ること、ゲートウェイのログに `outcome: ok` の行が1つ増えることを確かめる
-3. Stripe ダッシュボード（本番）の **支払い** に $1 の取引が出ること、Nevermined の手数料（2%）が差し引かれていることを確かめる
-4. 実証2に、プラン ID・購入 URL・移行した日付を伝える（実証2の `config/site.json` の `card.nvm_plan_id` に入り、販売ページのカードの「準備中」が外れる）
+4 で Vercel を切り替えた時点で、Sandbox での運用（定期購入・自動補充）は止まる。同じデプロイを本番に切り替えるためで、Sandbox の数字はその日で終わる。ゲートウェイのログの各行には `nvmEnvironment`（sandbox / live）が入るので、実証2 は移行日の前後をこれで分けられる。
 
 ## 6. 買い手エージェントの定期購入は止める
 
-本番では、買い手エージェントの定期購入が自社のカードに実費で請求される。`/cron/buyer` は `NVM_ENVIRONMENT=live` のとき何もしない（`{ "skipped": "live_environment" }` を返す。`src/buyer/cron.ts` の `buyerCronAllowed`）。本番での動作確認は 5 の手順で手で1回だけ行う。どうしても定期で動かすときだけ `BUYER_CRON_IN_LIVE=true` を入れる。
+本番では、買い手エージェントの定期購入が自社のカードに実費で請求される。`/cron/buyer` は `NVM_ENVIRONMENT=live` のとき何もしない（`{ "skipped": "live_environment" }` を返す。`src/buyer/cron.ts` の `buyerCronAllowed`）。本番での動作確認は、上の 8 のとおり `POST /buyer/once` で手で 1 回だけ行う（停止状態や 1 日の回数に関係なく、指定したパスを 1 回買う）。どうしても定期で動かすときだけ `BUYER_CRON_IN_LIVE=true` を入れる。
 
 ## 参照
 

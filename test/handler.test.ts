@@ -64,6 +64,7 @@ function setup(reply = ok, guard = new SpendGuard(usdToMicro('0.05'), usdToMicro
   const logs: any[] = [];
   const handle = createHandler({
     upstreamNetworkMode: 'mainnet',
+    nvmEnvironment: 'sandbox',
     pricing: PRICING,
     ledger,
     upstream,
@@ -95,6 +96,7 @@ test('success: buys upstream, then consumes credits matching the price', async (
   assert.equal(logs[0].creditsConsumed, 2);
   assert.equal(logs[0].upstreamTx, 'sig123');
   assert.equal(logs[0].upstreamNetworkMode, 'mainnet');
+  assert.equal(logs[0].nvmEnvironment, 'sandbox');
   assert.equal(logs[0].upstreamCostMicro, '20000');
   assert.notEqual(logs[0].tokenId, 'tok');
   assert.equal(JSON.stringify(logs[0]).includes('"tok"'), false, 'raw token must not be logged');
