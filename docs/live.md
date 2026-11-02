@@ -49,3 +49,12 @@ B が通らない場合、カードの入口は本番に移せない。そのと
 - Stripe Connect の接続・手数料：<https://nevermined.ai/docs/products/payments/faq.md>、<https://nevermined.ai/docs/integrate/patterns/fiat-payments.md>
 - 国をまたぐ入金：<https://docs.stripe.com/connect/cross-border-payouts>
 - 制限付きキー：<https://docs.stripe.com/keys/restricted-api-keys.md>
+
+## 移行の記録
+
+| 日時（UTC） | 出来事 |
+|---|---|
+| 2026-11-02 10:52 | Vercel の環境変数を本番に切り替えて Redeploy。ゲートウェイは `NVM_PLAN_ID` 待ちの状態で起動 |
+| 2026-11-02 10:52:39 | `POST /setup/plan` で本番のプランとエージェントを作成。プラン `109390300569784239149001680992260682156573712120263169260609849660793213537158`、エージェント `40597898777609448364666718252952480148470005949452368282165923844683523900188`。照合：個人の下（`orgId: null`）、`nvm:card-delegation`、価格合計 $1（売り手 0.98 ＋ 手数料 0.02）、100 クレジット、1 回 1 クレジット固定、期限 2,592,000 秒（30 日）、Base mainnet（8453）、受取 `0xc2A2…40FA` |
+
+購入 URL：`https://nevermined.app/checkout/plan/109390300569784239149001680992260682156573712120263169260609849660793213537158`
