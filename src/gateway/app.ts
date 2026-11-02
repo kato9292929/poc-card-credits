@@ -266,6 +266,33 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     }
   });
 
+  // 調査用（読み取りのみ）：Nevermined の API を本番のキーでそのまま叩き、結果を返す。呼べるのは下の決まった口だけ。
+  // 本番の購入でクレジットが付かなかった件（docs/live.md）の原因を追うため。Bearer $CRON_SECRET
+  app.get('/diag/nvm', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    const who = req.query.as === 'buyer' ? process.env.NVM_API_KEY_BUYER : cfg.nvmApiKey;
+    if (!who) return void res.status(503).json({ error: 'no_key' });
+    const ALLOWED: Record<string, string> = {
+      'connect-status': '/api/v1/fiat/stripe/connect/status',
+      'connect': '/api/v1/fiat/stripe/connect',
+      'account-balance': '/api/v1/fiat/stripe/account/balance',
+      'purchases': '/api/v1/transactions/plans-purchased-detailed?page=1&offset=10',
+      'plan': `/api/v1/protocol/plans/${cfg.planId}`,
+      'memberships': '/api/v1/organizations/my-memberships',
+    };
+    const path = ALLOWED[String(req.query.q)];
+    if (!path) return void res.status(400).json({ error: 'unknown_query', allowed: Object.keys(ALLOWED) });
+    const backend = cfg.nvmEnvironment === 'live' ? 'https://api.live.nevermined.app' : 'https://api.sandbox.nevermined.app';
+    const key = who.includes(':') ? who : who;
+    try {
+      const r = await fetch(`${backend}${path}`, { headers: { authorization: `Bearer ${key}`, accept: 'application/json' } });
+      const text = await r.text();
+      res.status(200).json({ status: r.status, as: req.query.as === 'buyer' ? 'buyer' : 'seller', address: Payments.getInstance({ nvmApiKey: who, environment: cfg.nvmEnvironment }).getAccountAddress(), body: text.slice(0, 6000) });
+    } catch (e) {
+      res.status(500).json({ error: 'diag_failed', reason: (e as Error).message });
+    }
+  });
+
   // 止まった買い手エージェントを再開する（プランを買い直したあと）。Blob が Vercel 上でしか読み書きできないのでここで行う
   app.post('/buyer/resume', async (req, res) => {
     if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
