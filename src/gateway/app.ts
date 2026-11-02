@@ -29,6 +29,7 @@ import { ensureDelegation, type CardProvider } from '../buyer/delegation.ts';
 import { runPaygProbe } from '../buyer/payg-probe.ts';
 import { resumeBuyer } from '../buyer/resume.ts';
 import { setupPlan } from '../setup/plan.ts';
+import { grantPaidOrder } from '../setup/grant.ts';
 
 /** デプロイ先（Vercel）に必要な環境変数。名前だけを /healthz に出す */
 export const REMOTE_REQUIRED = {
@@ -283,13 +284,27 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     const path = ALLOWED[String(req.query.q)];
     if (!path) return void res.status(400).json({ error: 'unknown_query', allowed: Object.keys(ALLOWED) });
     const backend = cfg.nvmEnvironment === 'live' ? 'https://api.live.nevermined.app' : 'https://api.sandbox.nevermined.app';
-    const key = who.includes(':') ? who : who;
     try {
-      const r = await fetch(`${backend}${path}`, { headers: { authorization: `Bearer ${key}`, accept: 'application/json' } });
+      const r = await fetch(`${backend}${path}`, { headers: { authorization: `Bearer ${who}`, accept: 'application/json' } });
       const text = await r.text();
       res.status(200).json({ status: r.status, as: req.query.as === 'buyer' ? 'buyer' : 'seller', address: Payments.getInstance({ nvmApiKey: who, environment: cfg.nvmEnvironment }).getAccountAddress(), body: text.slice(0, 6000) });
     } catch (e) {
       res.status(500).json({ error: 'diag_failed', reason: (e as Error).message });
+    }
+  });
+
+  // 支払い済みなのにクレジットが付かなかった注文 1 件分を、売り手の権限で買い手に付ける（環境ごとに 1 回だけ）。
+  // ?ref= に Stripe の支払い ID を渡して記録に残す。Bearer $CRON_SECRET（docs/live.md）
+  app.post('/setup/grant', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    const buyerKey = process.env.NVM_API_KEY_BUYER;
+    const ref = String(req.query.ref ?? '');
+    if (!buyerKey) return void res.status(503).json({ error: 'no_buyer_key' });
+    if (!/^(py|pi|ch)_[A-Za-z0-9]+$/.test(ref)) return void res.status(400).json({ error: 'ref_required' });
+    try {
+      res.json(await grantPaidOrder({ sellerKey: cfg.nvmApiKey, buyerKey, environment: cfg.nvmEnvironment, planId: cfg.planId, paymentRef: ref, blobToken: cfg.blobReadWriteToken }));
+    } catch (e) {
+      res.status(500).json({ error: 'grant_failed', reason: (e as Error).message });
     }
   });
 
