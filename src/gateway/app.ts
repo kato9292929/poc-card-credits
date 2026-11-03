@@ -12,6 +12,8 @@ import { waitUntil } from '@vercel/functions';
 import { HARD_MAX_PER_CALL, delegationLimitCents, loadGatewayConfig, nvmEnvironment } from '../config.ts';
 import { assertRoutesWithinCap, loadPricing } from '../pricing.ts';
 import { jstDay } from '../log.ts';
+import { put } from '@vercel/blob';
+import { matchRoute } from '../pricing.ts';
 import { VercelBlobLogStore } from '../logstore/blob.ts';
 import { FileLogStore } from '../logstore/file.ts';
 import { GatewayLogWriter } from '../logstore/writer.ts';
@@ -188,6 +190,37 @@ async function buildApp(app: express.Express): Promise<{ app: express.Express; f
     upstreamNetworkMode: cfg.testnetOnly ? 'testnet' : 'mainnet',
     nvmEnvironment: cfg.nvmEnvironment,
     syncSpend: cfg.logSink === 'blob' ? syncSpend : undefined,
+  });
+
+  // 実証3 の A：ゲートウェイのウォレットで、上流の x402 を USDC で 1 回だけ直接買う（Nevermined もクレジットも通さない）。
+  // 所要時間・額・tx を返し、Blob の probe/x402-<時刻>.json に残す。ゲートウェイのログには書かない（実証2 の集計に混ぜない）。
+  // 日次上限の計算に入らないので、1 日 3 回までに限る。Bearer $CRON_SECRET
+  let probeCount = { day: '', n: 0 };
+  app.post('/probe/x402', async (req, res) => {
+    if (!bearerMatches(req.get('authorization'), process.env.CRON_SECRET)) return void res.status(401).json({ error: 'unauthorized' });
+    const path = String(req.query.path ?? '');
+    const matched = matchRoute(pricing, 'GET', path);
+    if (!matched) return void res.status(400).json({ error: 'unknown_path' });
+    const day = jstDay();
+    if (probeCount.day !== day) probeCount = { day, n: 0 };
+    if (probeCount.n >= 3) return void res.status(429).json({ error: 'probe_limit' });
+    probeCount.n++;
+    const base = cfg.upstreams[matched.route.upstream];
+    const url = `${base.replace(/\/$/, '')}${matched.upstreamPath}`;
+    const startedAt = new Date().toISOString();
+    const t0 = Date.now();
+    try {
+      const up = await upstream.buy({ url, method: 'GET', expectedPrice: matched.route.price, guard });
+      const result = {
+        kind: 'x402_direct', startedAt, totalMs: Date.now() - t0, url, status: up.status, paidMicro: String(up.paidMicro),
+        attemptedMicro: String(up.attemptedMicro), network: up.network, tx: up.tx, upstreamLatencyMs: up.latencyMs,
+        error: up.error, refused: up.refused, bodyBytes: up.body.byteLength, upstreamNetworkMode: cfg.testnetOnly ? 'testnet' : 'mainnet',
+      };
+      await put(`probe/x402-${startedAt.replace(/[:.]/g, '-')}.json`, JSON.stringify(result), { access: 'private', token: cfg.blobReadWriteToken, contentType: 'application/json', addRandomSuffix: false });
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ error: 'probe_failed', reason: (e as Error).message });
+    }
   });
 
   app.get('/healthz', async (_req, res) => {
