@@ -80,3 +80,16 @@ B が通らない場合、カードの入口は本番に移せない。そのと
 
 - 支払い `py_1UXKAj3vSEcfGG4Q…` の末尾は売り手の接続アカウント `acct_1U0L1S3vSEcfGG4Q` と一致する。$1 は ¥155 として売り手の Stripe に入り、手数料を引いた **¥99** が残高に出ている（差し引き ¥56 ≒ 36%。Stripe と Nevermined の手数料・通貨換算の内訳は Stripe の明細で確かめる）
 - 一方、買い手の購入履歴は API でも 0 件で、クレジットも 0。**お金は売り手に届いたが、Nevermined 側で注文が買い手に記録されていない**。Sandbox では同じ SDK のプランが購入画面でも自動補充でも付与されたので、違いは本番（日本の Standard アカウント・円での受け取り）か、Nevermined の本番側の処理にある
+
+**解決（2026-11-03 00:01 UTC に確認）**：クレジットは遅れて付いていた。
+
+- 買い手（`0x0F8e…1647`）の購入履歴に 1 件、残高 100。Nevermined が注文を記録した時刻は **2026-11-02 17:19:33 UTC**（`txType: Purchase`、`reconciliationStatus: Settled`、`reconcileAttempts: 1`）で、支払い（12:17 UTC までに）から **約 5 時間遅れ**。購入画面の「Order complete」の時点ではまだ付いていない。期限はこの記録時刻から 30 日（2026-12-02 17:19 UTC ごろ）
+- 内訳（Nevermined の記録、USD 換算、為替 1.54781）：価格 $1.00 のうち売り手 `ownerMargin` **$0.65**、Nevermined `nvmMargin` $0.02、Stripe の実際の手数料 $0.039（¥6）。売り手の取り分は、Stripe 手数料の見積もり `estimatedStripeFeeMicro` **$0.33** を先に引いて決まっている（実際の手数料は $0.039）。¥155 のうち売り手残高 ¥99 はこの $0.65 に当たる
+- 付与を待つ間に、売り手の権限でクレジットを付ける口（`POST /setup/grant`）を用意したが、実行前に付与が確認できたので使わずに外した
+
+| 日時（UTC） | 出来事 |
+|---|---|
+| 2026-11-03 00:01:53 | ゲートウェイの `POST /buyer/once?path=/api/jin/series` で JIN を 1 回購入。カードの委任を作成（`1fdf2492`、上限 100 セント） |
+| 2026-11-03 00:01:56 | ゲートウェイのログ：`nvmEnvironment: live`、`verify: valid`、`settle: ok`（`tid-e355bfd0…`）、`outcome: ok`、`status: 200`、`creditsConsumed: 1`、残り 99。上流は Solana mainnet で $0.01（`4sQkEy4r…pj94Q`）。`payerId: d0c6c75243d07e82`（Sandbox と同じ買い手アドレスなので同じ値） |
+
+これで「本番でカード購入 → 100 クレジット → ゲートウェイ経由で JIN 1 回」まで通った。買い手の定期購入は本番では止めたまま（`BUYER_CRON_IN_LIVE` は未設定）。
